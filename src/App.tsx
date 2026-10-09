@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { BARRAS, Barra } from "./engine/barras";
 import { ErrorDeDatos } from "./engine/tipos";
-import { calcularViga, ResultadoViga } from "./engine/viga";
+import { calcularViga, EntradaViga, ResultadoViga } from "./engine/viga";
+import { Seccion } from "./Seccion";
 import { formatear, leerNumero as n } from "./engine/numeros";
 
-type Estado = { ok: true; r: ResultadoViga } | { ok: false; mensaje: string };
+type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mensaje: string };
 
 export function App() {
   const [v, setV] = useState({
@@ -16,15 +17,13 @@ export function App() {
   const est: Estado = useMemo(() => {
     try {
       const cm = (s: string) => n(s) / 100;
-      return {
-        ok: true,
-        r: calcularViga({
-          b: cm(v.b), h: cm(v.h), L: n(v.L), recub: cm(v.recub),
-          sup: { cantidad: n(v.ns), barra: v.bs }, inf: { cantidad: n(v.ni), barra: v.bi },
-          estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho) },
-          margenConcretoPct: n(v.margen),
-        }),
+      const entrada: EntradaViga = {
+        b: cm(v.b), h: cm(v.h), L: n(v.L), recub: cm(v.recub),
+        sup: { cantidad: n(v.ns), barra: v.bs }, inf: { cantidad: n(v.ni), barra: v.bi },
+        estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho) },
+        margenConcretoPct: n(v.margen),
       };
+      return { ok: true, r: calcularViga(entrada), e: entrada };
     } catch (e) {
       if (e instanceof ErrorDeDatos) return { ok: false, mensaje: e.message };
       throw e;
@@ -58,6 +57,7 @@ export function App() {
 
       {est.ok ? (
         <>
+          <Seccion e={est.e} />
           <section className="rotulo" aria-live="polite">
             <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
             <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />

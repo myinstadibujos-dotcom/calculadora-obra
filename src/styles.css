@@ -81,3 +81,8 @@ body {
 .tabla th, .tabla td { padding: 8px; text-align: right; border-bottom: 1px solid var(--linea); }
 .tabla th:first-child, .tabla td:first-child { text-align: left; }
 .tabla th { color: var(--suave); font-weight: 600; }
+.seccion { width: 100%; max-height: 340px; background: var(--fondo-campo); border: 2px solid var(--tinta); }
+.sec-concreto { fill: var(--papel); stroke: var(--tinta); stroke-width: 0.8; }
+.sec-estribo { fill: none; stroke: var(--estaca); }
+.sec-barra { fill: var(--plano); }
+.sec-cota { fill: var(--suave); font-family: inherit; }
