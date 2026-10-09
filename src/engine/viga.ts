@@ -2,8 +2,10 @@ import { Barra, diametroMm, pesoPorMetro } from "./barras";
 import { ErrorDeDatos, ResultadoCalculo } from "./tipos";
 import { volumenPrisma } from "./volumen";
 
-export interface GrupoBarras { cantidad: number; barra: Barra }
-export interface Adicional { grupo: "sup" | "inf"; cantidad: number; barra: Barra; desde: number; longitud: number } // metros desde la cara útil izquierda
+/** Gancho en los extremos de una barra. La pierna se mide desde el vértice del doblez (m). */
+export interface Gancho { extremos: "ninguno" | "ambos" | "izq" | "der"; tipo: "90" | "135" | "180"; pierna: number }
+export interface GrupoBarras { cantidad: number; barra: Barra; gancho?: Gancho }
+export interface Adicional { grupo: "sup" | "inf"; cantidad: number; barra: Barra; desde: number; longitud: number; gancho?: Gancho } // metros desde la cara útil izquierda
 export interface EntradaViga {
   adicionales?: Adicional[]; sepCapas?: number; // sepCapas: separación libre entre capas (m), solo para dibujo y verificación de cabida
   b: number; h: number; L: number; recub: number; // metros
@@ -13,7 +15,7 @@ export interface EntradaViga {
 }
 export interface FilaDespiece {
   id: string; descripcion: string; barra: Barra;
-  cantidad: number; longCorte: number; pesoUnit: number; pesoTotal: number;
+  cantidad: number; longCorte: number; longRecta: number; pesoUnit: number; pesoTotal: number;
 }
 export interface ResultadoViga {
   concreto: ResultadoCalculo; volumenCompra: number; formaleta: ResultadoCalculo;
@@ -46,6 +48,31 @@ export function desplazamientoCapa2(e: EntradaViga, grupo: "sup" | "inf"): numbe
   return m.cantidad > 0 ? diametroMm(m.barra) / 1000 + (e.sepCapas ?? 0.025) : 0;
 }
 
+/** Segmentos [x1, y1, x2, y2] (m, y medida desde la cara superior) de las piernas de los ganchos. */
+export function patasDeGancho(g: Gancho | undefined, grupo: "sup" | "inf", xIzq: number, xDer: number, y: number, d: number): [number, number, number, number][] {
+  if (!g || g.extremos === "ninguno" || !(g.pierna > 0)) return [];
+  const sy = grupo === "sup" ? 1 : -1; // arriba el gancho baja; abajo el gancho sube
+  const c = Math.SQRT1_2, p = g.pierna;
+  const una = (xv: number, h: 1 | -1): [number, number, number, number][] =>
+    g.tipo === "90" ? [[xv, y, xv, y + sy * p]]
+    : g.tipo === "135" ? [[xv, y, xv + h * p * c, y + sy * p * c]]
+    : [[xv, y, xv, y + sy * d], [xv, y + sy * d, xv + h * p, y + sy * d]];
+  return [...(g.extremos !== "der" ? una(xIzq, 1) : []), ...(g.extremos !== "izq" ? una(xDer, -1) : [])];
+}
+
+/** Longitud extra por ganchos y verificación de que la pierna cabe dentro de la sección y del largo de la barra. */
+function ganchoDe(nombre: string, g: Gancho | undefined, run: number, centro: number, d: number, h: number, recub: number, dE: number) {
+  if (!g || g.extremos === "ninguno") return { extra: 0, texto: "" };
+  if (!(g.pierna > 0)) throw new ErrorDeDatos(`${nombre}: define la longitud de la pierna del gancho.`);
+  const n = g.extremos === "ambos" ? 2 : 1, c = Math.SQRT1_2;
+  const vert = g.tipo === "90" ? g.pierna : g.tipo === "135" ? g.pierna * c : d;
+  const horiz = g.tipo === "90" ? 0 : g.tipo === "135" ? g.pierna * c : g.pierna;
+  const libre = h - recub - dE - centro;
+  if (vert > libre + 1e-9) throw new ErrorDeDatos(`${nombre}: el gancho no cabe en la altura de la viga (espacio vertical disponible ${(libre * 100).toFixed(1)} cm).`);
+  if (horiz > run + 1e-9) throw new ErrorDeDatos(`${nombre}: la pierna del gancho es más larga que la barra.`);
+  return { extra: n * g.pierna, texto: ` · ${n} gancho${n > 1 ? "s" : ""} ${g.tipo}° (pierna ${(g.pierna * 100).toFixed(0)} cm)` };
+}
+
 export function calcularViga(e: EntradaViga): ResultadoViga {
   const concreto = volumenPrisma(e.b, e.h, e.L); // valida b, h, L
   const { b, h, L, recub } = e;
@@ -61,9 +88,9 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
 
   const adv = [...concreto.advertencias];
   const despiece: FilaDespiece[] = [];
-  const fila = (id: string, descripcion: string, barra: Barra, cantidad: number, longCorte: number) => {
+  const fila = (id: string, descripcion: string, barra: Barra, cantidad: number, longCorte: number, longRecta = longCorte) => {
     const pesoUnit = longCorte * pesoPorMetro(barra);
-    despiece.push({ id, descripcion, barra, cantidad, longCorte, pesoUnit, pesoTotal: pesoUnit * cantidad });
+    despiece.push({ id, descripcion, barra, cantidad, longCorte, longRecta, pesoUnit, pesoTotal: pesoUnit * cantidad });
   };
 
   const longitudinal = (id: string, nombre: string, g: GrupoBarras) => {
@@ -71,7 +98,9 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
     if (g.cantidad === 0) return;
     if (g.cantidad * (diametroMm(g.barra) / 1000) > b - 2 * recub - 2 * dE)
       throw new ErrorDeDatos(`Barras ${nombre}: no caben en el ancho de la viga.`);
-    fila(id, `Longitudinal ${nombre}`, g.barra, g.cantidad, largoUtil);
+    const d = diametroMm(g.barra) / 1000;
+    const hk = ganchoDe(`Barras ${nombre}`, g.gancho, largoUtil, recub + dE + d / 2, d, h, recub, dE);
+    fila(id, `Longitudinal ${nombre}${hk.texto}`, g.barra, g.cantidad, largoUtil + hk.extra, largoUtil);
   };
   longitudinal("L-sup", "superior", e.sup);
   longitudinal("L-inf", "inferior", e.inf);
@@ -87,7 +116,8 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
     const d = diametroMm(a.barra) / 1000;
     if (a.cantidad * d > b - 2 * recub - 2 * dE) throw new ErrorDeDatos(`${t}: las barras no caben en el ancho de la viga.`);
     ocupa[a.grupo] = Math.max(ocupa[a.grupo], desplazamientoCapa2(e, a.grupo) + d);
-    fila(`A-${i + 1}`, `Adicional ${a.grupo === "sup" ? "superior" : "inferior"} (${(a.desde * 100).toFixed(0)}–${((a.desde + a.longitud) * 100).toFixed(0)} cm)`, a.barra, a.cantidad, a.longitud);
+    const hk = ganchoDe(t, a.gancho, a.longitud, recub + dE + desplazamientoCapa2(e, a.grupo) + d / 2, d, h, recub, dE);
+    fila(`A-${i + 1}`, `Adicional ${a.grupo === "sup" ? "superior" : "inferior"} (${(a.desde * 100).toFixed(0)}–${((a.desde + a.longitud) * 100).toFixed(0)} cm)${hk.texto}`, a.barra, a.cantidad, a.longitud + hk.extra, a.longitud);
     for (let j = 0; j < i; j++) {
       const o = ads[j];
       if (o.grupo === a.grupo && a.desde < o.desde + o.longitud && o.desde < a.desde + a.longitud)
@@ -95,7 +125,7 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
     }
   });
   if (ocupa.sup + ocupa.inf > h - 2 * (recub + dE) + 1e-9) throw new ErrorDeDatos("Las capas de barras no caben en la altura de la viga.");
-  if (ads.length > 0) adv.push("Refuerzos adicionales rectos, sin ganchos ni anclajes: la longitud ingresada es la de corte.");
+  if (ads.length > 0) adv.push("Refuerzos adicionales: la longitud ingresada es el tramo recto; los ganchos se suman solo si los configuras.");
 
   const zl = e.estribo.zonaLong ?? 0, zs = e.estribo.zonaSep ?? 0;
   if (!(zl >= 0)) throw new ErrorDeDatos("Zona extrema: la longitud no puede ser negativa.");
@@ -118,9 +148,11 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
     if (Math.abs(ajuste - e.estribo.separacion) > 1e-6 && nCen > 0)
       adv.push(`Tramo de ajuste junto a la zona extrema derecha: ${(ajuste * 100).toFixed(1)} cm entre estribos.`);
   }
-  adv.push("Barras rectas de longitud igual a L − 2·recubrimiento: sin ganchos, anclajes ni traslapos.");
+  adv.push("Barras de tramo recto L − 2·recubrimiento, sin traslapos ni anclajes adicionales; solo llevan ganchos donde los configuras.");
   if (e.estribo.gancho === 0) adv.push("Extensión de gancho del estribo = 0: defínela. Su valor reglamentario aún no está verificado en esta app.");
 
+  if (despiece.some((f) => f.longCorte - f.longRecta > 1e-9))
+    adv.push("Ganchos: corte = tramo recto + piernas medidas desde el vértice del doblez, sin descontar radios de doblez. Ángulo y pierna los defines tú; no están verificados contra la NSR-10 en esta app.");
   const pesoPorBarra: Record<string, number> = {};
   for (const f of despiece) pesoPorBarra[f.barra] = (pesoPorBarra[f.barra] ?? 0) + f.pesoTotal;
 

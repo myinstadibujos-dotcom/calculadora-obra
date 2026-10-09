@@ -17,8 +17,10 @@ export function Longitudinal({ e }: { e: EntradaViga }) {
               strokeWidth={s.espesor * cm} />
       ))}
       {g.barras.map((b, i) => (
-        <line key={i} className={b.adicional ? "lon-barra lon-ad" : "lon-barra"} x1={b.x0 * cm} x2={b.x1 * cm} y1={b.y * cm} y2={b.y * cm}
-              strokeWidth={b.d * cm} />
+        <g key={i} className={b.adicional ? "lon-barra lon-ad" : "lon-barra"} strokeWidth={b.d * cm} strokeLinecap="round" fill="none">
+          <line x1={b.x0 * cm} x2={b.x1 * cm} y1={b.y * cm} y2={b.y * cm} />
+          {b.patas.map((q, j) => <line key={j} x1={q[0] * cm} y1={q[1] * cm} x2={q[2] * cm} y2={q[3] * cm} />)}
+        </g>
       ))}
       <text className="sec-cota" x={W / 2} y={H + pad * 0.75} fontSize={fs} textAnchor="middle">
         L = {g.L.toFixed(2)} m · {g.estribos.length} estribos{g.estribos.some((s) => s.zona === "ext") ? ` (${g.estribos.filter((s) => s.zona === "ext").length} en zonas extremas)` : ""}

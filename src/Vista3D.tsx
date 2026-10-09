@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { diametroMm } from "./engine/barras";
 import { geometriaLongitudinal, geometriaSeccion } from "./engine/seccion";
-import type { EntradaViga } from "./engine/viga";
+import { patasDeGancho, type EntradaViga } from "./engine/viga";
 
 type Modo = "completo" | "armadura";
 interface Escena { grupo: THREE.Group; render: () => void; encuadrar: (e: EntradaViga) => void }
@@ -18,6 +18,14 @@ function limpiar(g: THREE.Group) {
     (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach((x) => x.dispose());
   });
   g.clear();
+}
+
+function cilindro(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Material) {
+  const dir = b.clone().sub(a), len = dir.length();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), mat);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
 }
 
 /** Construye el modelo desde los mismos datos geométricos del cálculo. Ejes: x = longitud, y = altura, z = ancho. */
@@ -44,16 +52,22 @@ function construir(g: THREE.Group, e: EntradaViga, modo: Modo) {
   let k = 0, n = 0;
   for (const bar of sec.barras) {
     let x0 = recub, len = L - 2 * recub;
+    let gancho = bar.grupo === "sup" ? e.sup.gancho : e.inf.gancho;
     if (bar.adicional) {
       const a = ads[k];
+      gancho = a.gancho;
       x0 = recub + a.desde; len = a.longitud;
       if (++n === a.cantidad) { k++; n = 0; }
     }
     const geo = new THREE.CylinderGeometry(bar.d / 2, bar.d / 2, len, 14);
     geo.rotateZ(Math.PI / 2);
-    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: bar.adicional ? col.tinta : col.plano }));
+    const mat = new THREE.MeshStandardMaterial({ color: bar.adicional ? col.tinta : col.plano });
+    const m = new THREE.Mesh(geo, mat);
     m.position.set(x0 + len / 2, h - bar.y, bar.x - b / 2);
     g.add(m);
+    const z = bar.x - b / 2;
+    for (const [x1, y1, x2, y2] of patasDeGancho(gancho, bar.grupo, x0, x0 + len, bar.y, bar.d))
+      g.add(cilindro(new THREE.Vector3(x1, h - y1, z), new THREE.Vector3(x2, h - y2, z), bar.d / 2, mat));
   }
 
   // Estribos: 4 lados por estribo en UNA sola malla instanciada (un solo dibujo, liviano para el teléfono)

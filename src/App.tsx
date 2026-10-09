@@ -4,7 +4,7 @@ import { consolidar, csvDespiece, descargar, exportarJSON, importarJSON } from "
 import { ErrorDeDatos } from "./engine/tipos";
 import { formatear } from "./engine/numeros";
 import { EditorViga } from "./EditorViga";
-import { ahora, DATOS_INICIALES, nuevoId, type DatosViga, type Elemento, type Proyecto } from "./modelo";
+import { ahora, completar, DATOS_INICIALES, nuevoId, type DatosViga, type Elemento, type Proyecto } from "./modelo";
 
 type Vista = { t: "lista" } | { t: "proyecto"; pid: string } | { t: "editor"; pid: string; eid: string };
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-CO");
@@ -20,7 +20,7 @@ export function App() {
 
   useEffect(() => {
     navigator.storage?.persist?.(); // pide al navegador no borrar los datos por falta de espacio
-    listarProyectos().then((l) => setProyectos(l.sort((a, b) => b.actualizado.localeCompare(a.actualizado))))
+    listarProyectos().then((l) => l.map((p) => ({ ...p, elementos: p.elementos.map((e) => ({ ...e, datos: completar(e.datos) })) }))).then((l) => setProyectos(l.sort((a, b) => b.actualizado.localeCompare(a.actualizado))))
       .catch(() => { setProyectos([]); setAviso("No se pudo abrir el almacenamiento local de este navegador."); });
   }, []);
 

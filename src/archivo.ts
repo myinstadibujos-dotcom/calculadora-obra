@@ -1,15 +1,20 @@
 import { calcularViga, type ResultadoViga } from "./engine/viga";
 import { ErrorDeDatos } from "./engine/tipos";
-import { toEntrada, nuevoId, type Proyecto } from "./modelo";
+import { completar, toEntrada, nuevoId, type Proyecto } from "./modelo";
 
-export const FORMATO = 1; // sube cuando cambie la estructura guardada; agrega una migración abajo
-const MIGRACIONES: Record<number, (x: any) => any> = {}; // MIGRACIONES[k] convierte de formato k a k+1
+export const FORMATO = 2; // sube cuando cambie la estructura guardada; agrega una migración abajo
+const MIGRACIONES: Record<number, (x: any) => any> = {
+  // 1 → 2: se agregan los ganchos de las barras longitudinales y de los refuerzos adicionales
+  1: (o) => ({ ...o, formato: 2, proyecto: { ...o.proyecto, elementos: Array.isArray(o.proyecto?.elementos)
+    ? o.proyecto.elementos.map((e: any) => (e?.datos?.v && Array.isArray(e.datos.ad) ? { ...e, datos: completar(e.datos) } : e))
+    : o.proyecto?.elementos } }),
+}; // MIGRACIONES[k] convierte de formato k a k+1
 
 export function exportarJSON(p: Proyecto): string {
   return JSON.stringify({ app: "calculadora-obra", formato: FORMATO, exportado: new Date().toISOString(), proyecto: p }, null, 1);
 }
 
-const CLAVES_V = ["b", "h", "L", "recub", "ns", "bs", "ni", "bi", "be", "sep", "gancho", "zl", "zs", "sepc", "margen"];
+const CLAVES_V = ["b", "h", "L", "recub", "ns", "bs", "ni", "bi", "be", "sep", "gancho", "zl", "zs", "sepc", "margen", "ges", "gts", "gls", "gei", "gti", "gli"];
 
 /** Valida el archivo ANTES de tocar datos existentes. Devuelve un proyecto nuevo (ids nuevos): nunca sobrescribe. */
 export function importarJSON(texto: string): Proyecto {

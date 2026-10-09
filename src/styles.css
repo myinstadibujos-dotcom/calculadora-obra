@@ -102,3 +102,4 @@ body {
 .vacio p { margin: 6px 0 0; color: var(--suave); }
 .lienzo3d { height: 320px; background: var(--fondo-campo); border: 2px solid var(--tinta); overflow: hidden; }
 .lienzo3d canvas { display: block; width: 100%; height: 100%; }
+.campo select { font-size: 1rem; }

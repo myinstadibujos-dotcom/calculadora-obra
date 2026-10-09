@@ -46,9 +46,15 @@ export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: st
         <Campo et="Barras sup." u="un" val={v.ns} f={set("ns")} />
         <Sel et="Diámetro" val={v.bs} f={set("bs")} />
         <span />
+        <Opc et="Ganchos" val={v.ges} f={set("ges")} op={EXT} />
+        <Opc et="Tipo" val={v.gts} f={set("gts")} op={TIPO} />
+        <Campo et="Pierna" u="cm" val={v.gls} f={set("gls")} />
         <Campo et="Barras inf." u="un" val={v.ni} f={set("ni")} />
         <Sel et="Diámetro" val={v.bi} f={set("bi")} />
         <span />
+        <Opc et="Ganchos" val={v.gei} f={set("gei")} op={EXT} />
+        <Opc et="Tipo" val={v.gti} f={set("gti")} op={TIPO} />
+        <Campo et="Pierna" u="cm" val={v.gli} f={set("gli")} />
         <Sel et="Estribo" val={v.be} f={set("be")} />
         <Campo et="Sep. central" u="cm" val={v.sep} f={set("sep")} />
         <Campo et="Gancho" u="cm" val={v.gancho} f={set("gancho")} />
@@ -58,7 +64,7 @@ export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: st
 
       <section className="entradas" aria-label="Refuerzo adicional">
         <div className="sub"><strong>Refuerzo adicional</strong>
-          <button className="btn" onClick={() => setAd([...ad, { grupo: "sup", cant: "2", barra: "#5", desde: "0", long: "100" }])}>+ Agregar</button></div>
+          <button className="btn" onClick={() => setAd([...ad, { grupo: "sup", cant: "2", barra: "#5", desde: "0", long: "100", ge: "ninguno", gt: "90", gl: "0" }])}>+ Agregar</button></div>
         <Campo et="Sep. entre capas" u="cm" val={v.sepc} f={set("sepc")} />
         {ad.map((a, i) => (
           <div className="item" key={i}>
@@ -68,6 +74,9 @@ export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: st
             <Sel et="Diámetro" val={a.barra} f={(x) => setA(i, "barra", x)} />
             <Campo et="Desde" u="cm" val={a.desde} f={(x) => setA(i, "desde", x)} />
             <Campo et="Longitud" u="cm" val={a.long} f={(x) => setA(i, "long", x)} />
+            <Opc et="Ganchos" val={a.ge} f={(x) => setA(i, "ge", x)} op={EXT} />
+            <Opc et="Tipo" val={a.gt} f={(x) => setA(i, "gt", x)} op={TIPO} />
+            <Campo et="Pierna" u="cm" val={a.gl} f={(x) => setA(i, "gl", x)} />
             <button className="btn" onClick={() => setAd(ad.filter((_, j) => j !== i))}>Quitar</button>
           </div>
         ))}
@@ -124,6 +133,16 @@ function Sel(p: { et: string; val: string; f: (v: string) => void }) {
   return (
     <label className="campo"><span>{p.et}</span>
       <div><select value={p.val} onChange={(e) => p.f(e.target.value)}>{BARRAS.map((b) => <option key={b}>{b}</option>)}</select></div>
+    </label>
+  );
+}
+
+const EXT: [string, string][] = [["ninguno", "Sin gancho"], ["ambos", "Ambos extremos"], ["izq", "Extremo izq."], ["der", "Extremo der."]];
+const TIPO: [string, string][] = [["90", "90°"], ["135", "135°"], ["180", "180°"]];
+function Opc(p: { et: string; val: string; f: (v: string) => void; op: [string, string][] }) {
+  return (
+    <label className="campo"><span>{p.et}</span>
+      <div><select value={p.val} onChange={(e) => p.f(e.target.value)}>{p.op.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></div>
     </label>
   );
 }
