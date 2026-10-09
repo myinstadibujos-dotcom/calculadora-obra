@@ -6,13 +6,16 @@ import { Seccion } from "./Seccion";
 import { Longitudinal } from "./Longitudinal";
 import { formatear, leerNumero as n } from "./engine/numeros";
 
+type Ad = { grupo: "sup" | "inf"; cant: string; barra: Barra; desde: string; long: string };
 type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mensaje: string };
 
 export function App() {
   const [v, setV] = useState({
     b: "30", h: "40", L: "4,00", recub: "4", ns: "2", bs: "#4" as Barra, ni: "3", bi: "#5" as Barra,
-    be: "#3" as Barra, sep: "15", gancho: "0", zl: "0", zs: "10", margen: "5",
+    be: "#3" as Barra, sep: "15", gancho: "0", zl: "0", zs: "10", sepc: "2,5", margen: "5",
   });
+  const [ad, setAd] = useState<Ad[]>([]);
+  const setA = (i: number, k: keyof Ad, x: string) => setAd(ad.map((a, j) => (j === i ? { ...a, [k]: x } : a)));
   const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
 
   const est: Estado = useMemo(() => {
@@ -22,14 +25,15 @@ export function App() {
         b: cm(v.b), h: cm(v.h), L: n(v.L), recub: cm(v.recub),
         sup: { cantidad: n(v.ns), barra: v.bs }, inf: { cantidad: n(v.ni), barra: v.bi },
         estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho), zonaLong: cm(v.zl), zonaSep: cm(v.zs) },
-        margenConcretoPct: n(v.margen),
+        margenConcretoPct: n(v.margen), sepCapas: cm(v.sepc),
+        adicionales: ad.map((a) => ({ grupo: a.grupo, cantidad: n(a.cant), barra: a.barra, desde: cm(a.desde), longitud: cm(a.long) })),
       };
       return { ok: true, r: calcularViga(entrada), e: entrada };
     } catch (e) {
       if (e instanceof ErrorDeDatos) return { ok: false, mensaje: e.message };
       throw e;
     }
-  }, [v]);
+  }, [v, ad]);
 
   return (
     <main className="app">
@@ -56,6 +60,23 @@ export function App() {
         <Campo et="Gancho" u="cm" val={v.gancho} f={set("gancho")} />
         <Campo et="Zona extrema" u="cm" val={v.zl} f={set("zl")} />
         <Campo et="Sep. en zona" u="cm" val={v.zs} f={set("zs")} />
+      </section>
+
+      <section className="entradas" aria-label="Refuerzo adicional">
+        <div className="sub"><strong>Refuerzo adicional</strong>
+          <button className="btn" onClick={() => setAd([...ad, { grupo: "sup", cant: "2", barra: "#5", desde: "0", long: "100" }])}>+ Agregar</button></div>
+        <Campo et="Sep. entre capas" u="cm" val={v.sepc} f={set("sepc")} />
+        {ad.map((a, i) => (
+          <div className="item" key={i}>
+            <label className="campo"><span>Ubicación</span><div>
+              <select value={a.grupo} onChange={(e) => setA(i, "grupo", e.target.value)}><option value="sup">Superior</option><option value="inf">Inferior</option></select></div></label>
+            <Campo et="Cantidad" u="un" val={a.cant} f={(x) => setA(i, "cant", x)} />
+            <Sel et="Diámetro" val={a.barra} f={(x) => setA(i, "barra", x)} />
+            <Campo et="Desde" u="cm" val={a.desde} f={(x) => setA(i, "desde", x)} />
+            <Campo et="Longitud" u="cm" val={a.long} f={(x) => setA(i, "long", x)} />
+            <button className="btn" onClick={() => setAd(ad.filter((_, j) => j !== i))}>Quitar</button>
+          </div>
+        ))}
       </section>
 
       {est.ok ? (

@@ -88,3 +88,8 @@ body {
 .sec-cota { fill: var(--suave); font-family: inherit; }
 .lon-barra { stroke: var(--plano); }
 .est-ext { stroke: var(--tinta); }
+.sub { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
+.item { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: end; border-top: 1px solid var(--linea); padding-top: 10px; }
+.btn { min-height: 44px; padding: 0 14px; border: 1.5px solid var(--plano); border-radius: 6px; background: transparent; color: var(--tinta); font: inherit; }
+.sec-ad { fill: var(--tinta); }
+.lon-ad { stroke: var(--tinta); }

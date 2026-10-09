@@ -3,7 +3,9 @@ import { ErrorDeDatos, ResultadoCalculo } from "./tipos";
 import { volumenPrisma } from "./volumen";
 
 export interface GrupoBarras { cantidad: number; barra: Barra }
+export interface Adicional { grupo: "sup" | "inf"; cantidad: number; barra: Barra; desde: number; longitud: number } // metros desde la cara útil izquierda
 export interface EntradaViga {
+  adicionales?: Adicional[]; sepCapas?: number; // sepCapas: separación libre entre capas (m), solo para dibujo y verificación de cabida
   b: number; h: number; L: number; recub: number; // metros
   sup: GrupoBarras; inf: GrupoBarras;
   estribo: { barra: Barra; separacion: number; gancho: number; zonaLong?: number; zonaSep?: number }; // metros; separacion = zona central
@@ -38,6 +40,12 @@ export function posicionesEstribos(U: number, sepCentral: number, zonaLong = 0, 
   return out;
 }
 
+/** Distancia desde la cara interior del estribo hasta el borde superior (o inferior) de la segunda capa. */
+export function desplazamientoCapa2(e: EntradaViga, grupo: "sup" | "inf"): number {
+  const m = grupo === "sup" ? e.sup : e.inf;
+  return m.cantidad > 0 ? diametroMm(m.barra) / 1000 + (e.sepCapas ?? 0.025) : 0;
+}
+
 export function calcularViga(e: EntradaViga): ResultadoViga {
   const concreto = volumenPrisma(e.b, e.h, e.L); // valida b, h, L
   const { b, h, L, recub } = e;
@@ -67,6 +75,27 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
   };
   longitudinal("L-sup", "superior", e.sup);
   longitudinal("L-inf", "inferior", e.inf);
+
+  if (!((e.sepCapas ?? 0.025) >= 0)) throw new ErrorDeDatos("Separación entre capas: no puede ser negativa.");
+  const ocupa = { sup: e.sup.cantidad > 0 ? diametroMm(e.sup.barra) / 1000 : 0, inf: e.inf.cantidad > 0 ? diametroMm(e.inf.barra) / 1000 : 0 };
+  const ads = (e.adicionales ?? []).filter((a) => a.cantidad !== 0);
+  ads.forEach((a, i) => {
+    const t = `Refuerzo adicional ${i + 1}`;
+    if (!Number.isInteger(a.cantidad) || a.cantidad < 0) throw new ErrorDeDatos(`${t}: la cantidad debe ser un entero.`);
+    if (!(a.longitud > 0) || !(a.desde >= 0)) throw new ErrorDeDatos(`${t}: revisa la posición y la longitud.`);
+    if (a.desde + a.longitud > largoUtil + 1e-9) throw new ErrorDeDatos(`${t}: se sale de la longitud útil de la viga (${(largoUtil * 100).toFixed(0)} cm).`);
+    const d = diametroMm(a.barra) / 1000;
+    if (a.cantidad * d > b - 2 * recub - 2 * dE) throw new ErrorDeDatos(`${t}: las barras no caben en el ancho de la viga.`);
+    ocupa[a.grupo] = Math.max(ocupa[a.grupo], desplazamientoCapa2(e, a.grupo) + d);
+    fila(`A-${i + 1}`, `Adicional ${a.grupo === "sup" ? "superior" : "inferior"} (${(a.desde * 100).toFixed(0)}–${((a.desde + a.longitud) * 100).toFixed(0)} cm)`, a.barra, a.cantidad, a.longitud);
+    for (let j = 0; j < i; j++) {
+      const o = ads[j];
+      if (o.grupo === a.grupo && a.desde < o.desde + o.longitud && o.desde < a.desde + a.longitud)
+        adv.push(`Los refuerzos adicionales ${j + 1} y ${i + 1} se solapan en longitud y comparten capa: revisa su posición.`);
+    }
+  });
+  if (ocupa.sup + ocupa.inf > h - 2 * (recub + dE) + 1e-9) throw new ErrorDeDatos("Las capas de barras no caben en la altura de la viga.");
+  if (ads.length > 0) adv.push("Refuerzos adicionales rectos, sin ganchos ni anclajes: la longitud ingresada es la de corte.");
 
   const zl = e.estribo.zonaLong ?? 0, zs = e.estribo.zonaSep ?? 0;
   if (!(zl >= 0)) throw new ErrorDeDatos("Zona extrema: la longitud no puede ser negativa.");

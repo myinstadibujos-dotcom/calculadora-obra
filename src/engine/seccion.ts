@@ -1,7 +1,7 @@
 import { diametroMm } from "./barras";
-import { posicionesEstribos, type EntradaViga } from "./viga";
+import { desplazamientoCapa2, posicionesEstribos, type EntradaViga } from "./viga";
 
-export interface BarraDibujo { x: number; y: number; d: number; grupo: "sup" | "inf" }
+export interface BarraDibujo { x: number; y: number; d: number; grupo: "sup" | "inf"; adicional?: boolean }
 export interface GeometriaSeccion {
   b: number; h: number; // metros
   estribo: { x: number; y: number; w: number; h: number; espesor: number }; // eje del estribo
@@ -25,6 +25,15 @@ export function geometriaSeccion(e: EntradaViga): GeometriaSeccion {
   };
   capa(e.sup, "sup");
   capa(e.inf, "inf");
+  for (const a of e.adicionales ?? []) {
+    if (a.cantidad === 0) continue;
+    const d = diametroMm(a.barra) / 1000;
+    const x0 = e.recub + dE + d / 2, x1 = e.b - e.recub - dE - d / 2;
+    const off = desplazamientoCapa2(e, a.grupo) + d / 2;
+    const y = a.grupo === "sup" ? e.recub + dE + off : e.h - e.recub - dE - off;
+    for (let i = 0; i < a.cantidad; i++)
+      barras.push({ x: a.cantidad === 1 ? e.b / 2 : x0 + ((x1 - x0) * i) / (a.cantidad - 1), y, d, grupo: a.grupo, adicional: true });
+  }
   return {
     b: e.b, h: e.h,
     estribo: { x: e.recub + dE / 2, y: e.recub + dE / 2, w: e.b - 2 * e.recub - dE, h: e.h - 2 * e.recub - dE, espesor: dE },
@@ -35,7 +44,7 @@ export function geometriaSeccion(e: EntradaViga): GeometriaSeccion {
 export interface GeometriaLongitudinal {
   L: number; h: number; // metros
   estribos: { x: number; y0: number; y1: number; espesor: number; zona: "ext" | "cen" }[];
-  barras: { y: number; d: number; x0: number; x1: number; grupo: "sup" | "inf" }[];
+  barras: { y: number; d: number; x0: number; x1: number; grupo: "sup" | "inf"; adicional?: boolean }[];
 }
 
 /** Vista de elevación: estribos a separación constante desde la cara útil izquierda. */
@@ -52,5 +61,11 @@ export function geometriaLongitudinal(e: EntradaViga): GeometriaLongitudinal {
   };
   capa(e.sup, "sup");
   capa(e.inf, "inf");
+  for (const a of e.adicionales ?? []) {
+    if (a.cantidad === 0) continue;
+    const d = diametroMm(a.barra) / 1000, off = desplazamientoCapa2(e, a.grupo) + d / 2;
+    const y = a.grupo === "sup" ? e.recub + dE + off : e.h - e.recub - dE - off;
+    barras.push({ y, d, x0: e.recub + a.desde, x1: e.recub + a.desde + a.longitud, grupo: a.grupo, adicional: true });
+  }
   return { L: e.L, h: e.h, estribos, barras };
 }

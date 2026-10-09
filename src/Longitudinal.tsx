@@ -16,8 +16,8 @@ export function Longitudinal({ e }: { e: EntradaViga }) {
         <line key={i} className={s.zona === "ext" ? "sec-estribo est-ext" : "sec-estribo"} x1={s.x * cm} x2={s.x * cm} y1={s.y0 * cm} y2={s.y1 * cm}
               strokeWidth={s.espesor * cm} />
       ))}
-      {g.barras.map((b) => (
-        <line key={b.grupo} className="lon-barra" x1={b.x0 * cm} x2={b.x1 * cm} y1={b.y * cm} y2={b.y * cm}
+      {g.barras.map((b, i) => (
+        <line key={i} className={b.adicional ? "lon-barra lon-ad" : "lon-barra"} x1={b.x0 * cm} x2={b.x1 * cm} y1={b.y * cm} y2={b.y * cm}
               strokeWidth={b.d * cm} />
       ))}
       <text className="sec-cota" x={W / 2} y={H + pad * 0.75} fontSize={fs} textAnchor="middle">

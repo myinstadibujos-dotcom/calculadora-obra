@@ -16,7 +16,7 @@ export function Seccion({ e }: { e: EntradaViga }) {
       <rect className="sec-estribo" x={s.x * cm} y={s.y * cm} width={s.w * cm} height={s.h * cm}
             rx={s.espesor * cm * 2} strokeWidth={s.espesor * cm} />
       {g.barras.map((b, i) => (
-        <circle key={i} className="sec-barra" cx={b.x * cm} cy={b.y * cm} r={(b.d * cm) / 2} />
+        <circle key={i} className={b.adicional ? "sec-barra sec-ad" : "sec-barra"} cx={b.x * cm} cy={b.y * cm} r={(b.d * cm) / 2} />
       ))}
       <text className="sec-cota" x={W / 2} y={H + pad * 0.7} fontSize={fs} textAnchor="middle">
         b = {(g.b * cm).toFixed(0)} cm
