@@ -1,5 +1,11 @@
 import { leerNumero } from "./numeros";
 
+/** Receta de dosificación por m³ de concreto. Los números son texto para respetar lo que escribe el usuario. */
+export interface Receta {
+  id: string; nombre: string; cemento: string; arena: string; grava: string; agua: string;
+  fuente: string; fecha: string; obs: string;
+}
+
 /** Parámetros del proyecto, todos editables y guardados como texto. Ninguno trae valores técnicos por defecto, salvo el peso del bulto. */
 export interface Materiales {
   tipo: "obra" | "premezclado";
@@ -7,16 +13,23 @@ export interface Materiales {
   cemento: string; arena: string; grava: string; agua: string; // por m³ de concreto: kg, m³, m³, L
   bulto: string; despAcero: string; despMat: string; // kg por bulto; % de desperdicio
   alambre: string; clavos: string; separadores: string; desmoldante: string; // factores de consumo
+  recetaSel: string; // "custom", id de una receta de referencia o "mia:<id>"
+  recetas: Receta[]; // recetas propias guardadas en este proyecto
 }
 export const MATERIALES_INICIALES: Materiales = {
   tipo: "obra", dosNombre: "", dosFuente: "", dosFecha: "", dosObs: "", cemento: "", arena: "", grava: "", agua: "",
   bulto: "50", despAcero: "0", despMat: "0", alambre: "", clavos: "", separadores: "", desmoldante: "",
+  recetaSel: "custom", recetas: [],
 };
 /** Completa lo que falte y descarta valores que no sean texto (archivos viejos o dañados). */
 export function completarMateriales(m: any): Materiales {
   const r: any = { ...MATERIALES_INICIALES };
   for (const k of Object.keys(MATERIALES_INICIALES)) if (typeof m?.[k] === "string") r[k] = m[k];
   if (r.tipo !== "obra" && r.tipo !== "premezclado") r.tipo = "obra";
+  const CAMPOS = ["id", "nombre", "cemento", "arena", "grava", "agua", "fuente", "fecha", "obs"] as const;
+  r.recetas = (Array.isArray(m?.recetas) ? m.recetas : [])
+    .filter((x: any) => x && typeof x.id === "string" && typeof x.nombre === "string")
+    .map((x: any) => Object.fromEntries(CAMPOS.map((k) => [k, typeof x[k] === "string" ? x[k] : ""])));
   return r;
 }
 

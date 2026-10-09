@@ -1,7 +1,8 @@
 import { descargar, type Consolidado } from "./archivo";
 import { calcularMateriales, completarMateriales, csvMateriales, type Materiales } from "./engine/materiales";
+import { aplicarReceta, RECETAS_REFERENCIA } from "./engine/recetas";
 import { formatear } from "./engine/numeros";
-import type { Proyecto } from "./modelo";
+import { nuevoId, type Proyecto } from "./modelo";
 import { Campo, Opc } from "./EditorViga";
 
 const DEC: Record<string, number> = { kg: 1, "m³": 3, L: 1, un: 0 };
@@ -19,6 +20,24 @@ function Texto(p: { et: string; val: string; f: (v: string) => void }) {
 export function MaterialesProyecto({ p, c, cambiar }: { p: Proyecto; c: Consolidado; cambiar: (m: Materiales) => void }) {
   const m = completarMateriales(p.materiales);
   const set = (k: keyof Materiales) => (x: string) => cambiar({ ...m, [k]: x });
+  const setD = (k: keyof Materiales) => (x: string) => cambiar({ ...m, [k]: x, recetaSel: "custom" }); // editar una receta la vuelve personalizada
+  const existe = m.recetaSel.startsWith("mia:") ? m.recetas.some((x) => `mia:${x.id}` === m.recetaSel) : RECETAS_REFERENCIA.some((x) => x.id === m.recetaSel);
+  const sel = m.recetaSel === "custom" || !existe ? "custom" : m.recetaSel;
+  const elegir = (v: string) => {
+    const rc = v.startsWith("mia:") ? m.recetas.find((x) => `mia:${x.id}` === v) : RECETAS_REFERENCIA.find((x) => x.id === v);
+    cambiar(rc ? aplicarReceta(m, rc, v) : { ...m, recetaSel: "custom" });
+  };
+  const guardarReceta = () => {
+    const nombre = window.prompt("Nombre de tu receta", m.dosNombre || "Mi receta")?.trim();
+    if (!nombre) return;
+    const id = nuevoId();
+    cambiar({ ...m, dosNombre: nombre, recetaSel: `mia:${id}`,
+      recetas: [...m.recetas, { id, nombre, cemento: m.cemento, arena: m.arena, grava: m.grava, agua: m.agua, fuente: m.dosFuente || "Receta propia", fecha: m.dosFecha, obs: m.dosObs }] });
+  };
+  const borrarReceta = () => {
+    if (window.confirm("¿Eliminar esta receta guardada? Los datos que ya están en los campos no cambian."))
+      cambiar({ ...m, recetaSel: "custom", recetas: m.recetas.filter((x) => `mia:${x.id}` !== m.recetaSel) });
+  };
   const r = calcularMateriales(m, { concretoGeom: c.concreto, concretoCompra: c.compra, formaleta: c.formaleta, aceroKg: c.aceroTotal });
   const archivo = p.nombre.replace(/[^\w\-]+/g, "_");
   return (
@@ -30,15 +49,31 @@ export function MaterialesProyecto({ p, c, cambiar }: { p: Proyecto; c: Consolid
         <Campo et="Desp. materiales" u="%" val={m.despMat} f={set("despMat")} />
         {m.tipo === "obra" && (
           <>
-            <Texto et="Nombre de la dosificación" val={m.dosNombre} f={set("dosNombre")} />
-            <Texto et="Fuente" val={m.dosFuente} f={set("dosFuente")} />
-            <Texto et="Fecha de revisión" val={m.dosFecha} f={set("dosFecha")} />
-            <Texto et="Condiciones de uso y observaciones" val={m.dosObs} f={set("dosObs")} />
-            <Campo et="Cemento" u="kg/m³" val={m.cemento} f={set("cemento")} />
-            <Campo et="Arena" u="m³/m³" val={m.arena} f={set("arena")} />
-            <Campo et="Grava" u="m³/m³" val={m.grava} f={set("grava")} />
-            <Campo et="Agua" u="L/m³" val={m.agua} f={set("agua")} />
+            <label className="campo ancho"><span>Receta de dosificación</span>
+              <div><select value={sel} onChange={(e) => elegir(e.target.value)}>
+                <option value="custom">Personalizada (escribes los valores)</option>
+                <optgroup label="Referencia · sin verificar">
+                  {RECETAS_REFERENCIA.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+                </optgroup>
+                {m.recetas.length > 0 && (
+                  <optgroup label="Mis recetas">
+                    {m.recetas.map((x) => <option key={x.id} value={`mia:${x.id}`}>{x.nombre}</option>)}
+                  </optgroup>
+                )}
+              </select></div></label>
+            <Texto et="Nombre de la dosificación" val={m.dosNombre} f={setD("dosNombre")} />
+            <Texto et="Fuente" val={m.dosFuente} f={setD("dosFuente")} />
+            <Texto et="Fecha de revisión" val={m.dosFecha} f={setD("dosFecha")} />
+            <Texto et="Condiciones de uso y observaciones" val={m.dosObs} f={setD("dosObs")} />
+            <Campo et="Cemento" u="kg/m³" val={m.cemento} f={setD("cemento")} />
+            <Campo et="Arena" u="m³/m³" val={m.arena} f={setD("arena")} />
+            <Campo et="Grava" u="m³/m³" val={m.grava} f={setD("grava")} />
+            <Campo et="Agua" u="L/m³" val={m.agua} f={setD("agua")} />
             <Campo et="Bulto cemento" u="kg" val={m.bulto} f={set("bulto")} />
+            <div className="barra" style={{ gridColumn: "1 / -1" }}>
+              <button className="btn" onClick={guardarReceta}>Guardar como mi receta</button>
+              {m.recetaSel.startsWith("mia:") && sel !== "custom" && <button className="btn" onClick={borrarReceta}>Eliminar mi receta</button>}
+            </div>
           </>
         )}
         <Campo et="Alambre" u="kg/kg" val={m.alambre} f={set("alambre")} />

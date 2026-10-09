@@ -4,8 +4,10 @@ import { completarMateriales } from "./engine/materiales";
 import { ErrorDeDatos } from "./engine/tipos";
 import { completar, toEntrada, toEntradaColumna, nuevoId, type Elemento, type Proyecto } from "./modelo";
 
-export const FORMATO = 4; // sube cuando cambie la estructura guardada; agrega una migración abajo
+export const FORMATO = 5; // sube cuando cambie la estructura guardada; agrega una migración abajo
 const MIGRACIONES: Record<number, (x: any) => any> = {
+  // 4 → 5: el proyecto puede guardar recetas de dosificación propias y la receta elegida
+  4: (o) => ({ ...o, formato: 5, proyecto: { ...o.proyecto, materiales: completarMateriales(o.proyecto?.materiales) } }),
   // 3 → 4: cada proyecto guarda sus parámetros de materiales y consumos
   3: (o) => ({ ...o, formato: 4, proyecto: { ...o.proyecto, materiales: completarMateriales(o.proyecto?.materiales) } }),
   // 2 → 3: aparecen las columnas como nuevo tipo de elemento (los datos existentes no cambian)
