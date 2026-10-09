@@ -76,3 +76,8 @@ body {
 @media (prefers-reduced-motion: no-preference) {
   .rotulo-fila.resultado strong { transition: opacity 0.15s; }
 }
+.campo select { width: 100%; border: 0; background: transparent; color: var(--tinta); font: inherit; font-size: 1.15rem; padding: 12px 8px; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.tabla th, .tabla td { padding: 8px; text-align: right; border-bottom: 1px solid var(--linea); }
+.tabla th:first-child, .tabla td:first-child { text-align: left; }
+.tabla th { color: var(--suave); font-weight: 600; }

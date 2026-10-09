@@ -1,94 +1,109 @@
 import { useMemo, useState } from "react";
-import { ErrorDeDatos, ResultadoCalculo } from "./engine/tipos";
-import { volumenPrisma } from "./engine/volumen";
-import { formatear, leerNumero } from "./engine/numeros";
+import { BARRAS, Barra } from "./engine/barras";
+import { ErrorDeDatos } from "./engine/tipos";
+import { calcularViga, ResultadoViga } from "./engine/viga";
+import { formatear, leerNumero as n } from "./engine/numeros";
 
-type Calculo = { ok: true; r: ResultadoCalculo } | { ok: false; mensaje: string };
+type Estado = { ok: true; r: ResultadoViga } | { ok: false; mensaje: string };
 
 export function App() {
-  const [b, setB] = useState("0,30");
-  const [h, setH] = useState("0,40");
-  const [L, setL] = useState("4,00");
+  const [v, setV] = useState({
+    b: "30", h: "40", L: "4,00", recub: "4", ns: "2", bs: "#4" as Barra, ni: "3", bi: "#5" as Barra,
+    be: "#3" as Barra, sep: "15", gancho: "0", margen: "5",
+  });
+  const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
 
-  const calculo: Calculo = useMemo(() => {
+  const est: Estado = useMemo(() => {
     try {
-      return { ok: true, r: volumenPrisma(leerNumero(b), leerNumero(h), leerNumero(L)) };
+      const cm = (s: string) => n(s) / 100;
+      return {
+        ok: true,
+        r: calcularViga({
+          b: cm(v.b), h: cm(v.h), L: n(v.L), recub: cm(v.recub),
+          sup: { cantidad: n(v.ns), barra: v.bs }, inf: { cantidad: n(v.ni), barra: v.bi },
+          estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho) },
+          margenConcretoPct: n(v.margen),
+        }),
+      };
     } catch (e) {
       if (e instanceof ErrorDeDatos) return { ok: false, mensaje: e.message };
       throw e;
     }
-  }, [b, h, L]);
+  }, [v]);
 
   return (
     <main className="app">
       <header className="cabecera">
-        <h1>Calculadora de obra</h1>
-        <p>Versión base · funciona sin conexión</p>
+        <h1>Viga de concreto</h1>
+        <p>Cantidades geométricas · sin conexión</p>
       </header>
-
-      <section className="entradas" aria-label="Dimensiones">
-        <Campo etiqueta="Ancho b" valor={b} onCambio={setB} />
-        <Campo etiqueta="Altura h" valor={h} onCambio={setH} />
-        <Campo etiqueta="Longitud L" valor={L} onCambio={setL} />
+      <section className="entradas" aria-label="Geometría">
+        <Campo et="Ancho b" u="cm" val={v.b} f={set("b")} />
+        <Campo et="Altura h" u="cm" val={v.h} f={set("h")} />
+        <Campo et="Longitud L" u="m" val={v.L} f={set("L")} />
+        <Campo et="Recubrimiento" u="cm" val={v.recub} f={set("recub")} />
+        <Campo et="Margen concreto" u="%" val={v.margen} f={set("margen")} />
+      </section>
+      <section className="entradas" aria-label="Refuerzo">
+        <Campo et="Barras sup." u="un" val={v.ns} f={set("ns")} />
+        <Sel et="Diámetro" val={v.bs} f={set("bs")} />
+        <span />
+        <Campo et="Barras inf." u="un" val={v.ni} f={set("ni")} />
+        <Sel et="Diámetro" val={v.bi} f={set("bi")} />
+        <span />
+        <Sel et="Estribo" val={v.be} f={set("be")} />
+        <Campo et="Separación" u="cm" val={v.sep} f={set("sep")} />
+        <Campo et="Gancho" u="cm" val={v.gancho} f={set("gancho")} />
       </section>
 
-      <section className="rotulo" aria-live="polite">
-        {calculo.ok ? (
-          <>
-            <div className="rotulo-fila titulo">{calculo.r.nombre}</div>
-            <div className="rotulo-fila">
-              <span>Fórmula</span>
-              <strong>{calculo.r.formula}</strong>
-            </div>
-            {calculo.r.entradas.map((e) => (
-              <div className="rotulo-fila" key={e.nombre}>
-                <span>{e.nombre}</span>
-                <strong>
-                  {formatear(e.valor, 2)} {e.unidad}
-                </strong>
-              </div>
+      {est.ok ? (
+        <>
+          <section className="rotulo" aria-live="polite">
+            <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
+            <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />
+            <Fila t="Formaleta" x={`${formatear(est.r.formaleta.valor, 2)} m²`} />
+            {Object.entries(est.r.pesoPorBarra).map(([b, p]) => (
+              <Fila key={b} t={`Acero ${b}`} x={`${formatear(p, 1)} kg`} />
             ))}
-            <div className="rotulo-fila resultado">
-              <span>Resultado</span>
-              <strong>
-                {formatear(calculo.r.valor, calculo.r.decimalesPresentacion)} {calculo.r.unidad}
-              </strong>
-            </div>
-            {calculo.r.supuestos.map((s) => (
-              <div className="nota" key={s}>
-                Supuesto: {s}
-              </div>
-            ))}
-            {calculo.r.advertencias.map((a) => (
-              <div className="nota alerta" key={a}>
-                Atención: {a}
-              </div>
-            ))}
-          </>
-        ) : (
-          <div className="rotulo-fila error">{calculo.mensaje}</div>
-        )}
-      </section>
-
-      <footer className="pie">
-        Cálculo geométrico de cantidades. No certifica la seguridad estructural del elemento.
-      </footer>
+            <div className="rotulo-fila resultado"><span>Acero total</span><strong>{formatear(est.r.pesoTotal, 1)} kg</strong></div>
+          </section>
+          <section className="rotulo">
+            <div className="rotulo-fila titulo">Despiece</div>
+            <table className="tabla">
+              <thead><tr><th>Pieza</th><th>Barra</th><th>Cant.</th><th>Corte (m)</th><th>Peso (kg)</th></tr></thead>
+              <tbody>
+                {est.r.despiece.map((f) => (
+                  <tr key={f.id}>
+                    <td>{f.descripcion}</td><td>{f.barra}</td><td>{f.cantidad}</td>
+                    <td>{formatear(f.longCorte, 2)}</td><td>{formatear(f.pesoTotal, 1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {est.r.advertencias.map((a) => <div className="nota alerta" key={a}>Atención: {a}</div>)}
+          </section>
+        </>
+      ) : (
+        <section className="rotulo"><div className="rotulo-fila error">{est.mensaje}</div></section>
+      )}
+      <footer className="pie">Cálculo geométrico de cantidades. No certifica la seguridad estructural del elemento.</footer>
     </main>
   );
 }
 
-function Campo(props: { etiqueta: string; valor: string; onCambio: (v: string) => void }) {
+const Fila = (p: { t: string; x: string }) => <div className="rotulo-fila"><span>{p.t}</span><strong>{p.x}</strong></div>;
+
+function Campo(p: { et: string; u: string; val: string; f: (v: string) => void }) {
   return (
-    <label className="campo">
-      <span>{props.etiqueta}</span>
-      <div>
-        <input
-          inputMode="decimal"
-          value={props.valor}
-          onChange={(e) => props.onCambio(e.target.value)}
-        />
-        <em>m</em>
-      </div>
+    <label className="campo"><span>{p.et}</span>
+      <div><input inputMode="decimal" value={p.val} onChange={(e) => p.f(e.target.value)} /><em>{p.u}</em></div>
+    </label>
+  );
+}
+function Sel(p: { et: string; val: string; f: (v: string) => void }) {
+  return (
+    <label className="campo"><span>{p.et}</span>
+      <div><select value={p.val} onChange={(e) => p.f(e.target.value)}>{BARRAS.map((b) => <option key={b}>{b}</option>)}</select></div>
     </label>
   );
 }
