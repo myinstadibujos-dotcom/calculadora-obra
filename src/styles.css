@@ -86,3 +86,4 @@ body {
 .sec-estribo { fill: none; stroke: var(--estaca); }
 .sec-barra { fill: var(--plano); }
 .sec-cota { fill: var(--suave); font-family: inherit; }
+.lon-barra { stroke: var(--plano); }

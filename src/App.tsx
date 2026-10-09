@@ -3,6 +3,7 @@ import { BARRAS, Barra } from "./engine/barras";
 import { ErrorDeDatos } from "./engine/tipos";
 import { calcularViga, EntradaViga, ResultadoViga } from "./engine/viga";
 import { Seccion } from "./Seccion";
+import { Longitudinal } from "./Longitudinal";
 import { formatear, leerNumero as n } from "./engine/numeros";
 
 type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mensaje: string };
@@ -58,6 +59,7 @@ export function App() {
       {est.ok ? (
         <>
           <Seccion e={est.e} />
+          <Longitudinal e={est.e} />
           <section className="rotulo" aria-live="polite">
             <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
             <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />

@@ -19,6 +19,11 @@ export interface ResultadoViga {
   pesoTotal: number; advertencias: string[];
 }
 
+/** Estribos a separación constante desde el primero; el epsilon evita errores de coma flotante (0,6/0,2). */
+export function contarEstribos(largoUtil: number, separacion: number): number {
+  return Math.floor(largoUtil / separacion + 1e-9) + 1;
+}
+
 export function calcularViga(e: EntradaViga): ResultadoViga {
   const concreto = volumenPrisma(e.b, e.h, e.L); // valida b, h, L
   const { b, h, L, recub } = e;
@@ -49,9 +54,11 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
   longitudinal("L-sup", "superior", e.sup);
   longitudinal("L-inf", "inferior", e.inf);
 
-  const nEst = Math.floor(largoUtil / e.estribo.separacion) + 1; // incluye primero y último, sin duplicar
+  const nEst = contarEstribos(largoUtil, e.estribo.separacion); // sin duplicar estribos
   fila("E-1", "Estribo cerrado", e.estribo.barra, nEst, 2 * (bi + hi) + 2 * e.estribo.gancho);
 
+  const resto = largoUtil - (nEst - 1) * e.estribo.separacion;
+  if (resto > 1e-6) adv.push(`El último estribo queda a ${(resto * 100).toFixed(1)} cm del extremo útil; no se agrega otro estribo en el extremo.`);
   adv.push("Barras rectas de longitud igual a L − 2·recubrimiento: sin ganchos, anclajes ni traslapos.");
   if (e.estribo.gancho === 0) adv.push("Extensión de gancho del estribo = 0: defínela. Su valor reglamentario aún no está verificado en esta app.");
 
