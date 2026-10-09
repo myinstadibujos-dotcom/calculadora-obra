@@ -1,134 +1,164 @@
-import { useMemo, useState } from "react";
-import { BARRAS, Barra } from "./engine/barras";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { borrarProyecto, guardarProyecto, listarProyectos } from "./almacen";
+import { consolidar, csvDespiece, descargar, exportarJSON, importarJSON } from "./archivo";
 import { ErrorDeDatos } from "./engine/tipos";
-import { calcularViga, EntradaViga, ResultadoViga } from "./engine/viga";
-import { Seccion } from "./Seccion";
-import { Longitudinal } from "./Longitudinal";
-import { formatear, leerNumero as n } from "./engine/numeros";
+import { formatear } from "./engine/numeros";
+import { EditorViga } from "./EditorViga";
+import { ahora, DATOS_INICIALES, nuevoId, type DatosViga, type Elemento, type Proyecto } from "./modelo";
 
-type Ad = { grupo: "sup" | "inf"; cant: string; barra: Barra; desde: string; long: string };
-type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mensaje: string };
+type Vista = { t: "lista" } | { t: "proyecto"; pid: string } | { t: "editor"; pid: string; eid: string };
+const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-CO");
+const copia = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
 export function App() {
-  const [v, setV] = useState({
-    b: "30", h: "40", L: "4,00", recub: "4", ns: "2", bs: "#4" as Barra, ni: "3", bi: "#5" as Barra,
-    be: "#3" as Barra, sep: "15", gancho: "0", zl: "0", zs: "10", sepc: "2,5", margen: "5",
-  });
-  const [ad, setAd] = useState<Ad[]>([]);
-  const setA = (i: number, k: keyof Ad, x: string) => setAd(ad.map((a, j) => (j === i ? { ...a, [k]: x } : a)));
-  const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
+  const [proyectos, setProyectos] = useState<Proyecto[] | null>(null);
+  const [vista, setVista] = useState<Vista>({ t: "lista" });
+  const [aviso, setAviso] = useState("");
+  const ref = useRef<Proyecto[]>([]);
+  const temporizador = useRef<number>();
+  ref.current = proyectos ?? [];
 
-  const est: Estado = useMemo(() => {
-    try {
-      const cm = (s: string) => n(s) / 100;
-      const entrada: EntradaViga = {
-        b: cm(v.b), h: cm(v.h), L: n(v.L), recub: cm(v.recub),
-        sup: { cantidad: n(v.ns), barra: v.bs }, inf: { cantidad: n(v.ni), barra: v.bi },
-        estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho), zonaLong: cm(v.zl), zonaSep: cm(v.zs) },
-        margenConcretoPct: n(v.margen), sepCapas: cm(v.sepc),
-        adicionales: ad.map((a) => ({ grupo: a.grupo, cantidad: n(a.cant), barra: a.barra, desde: cm(a.desde), longitud: cm(a.long) })),
-      };
-      return { ok: true, r: calcularViga(entrada), e: entrada };
-    } catch (e) {
-      if (e instanceof ErrorDeDatos) return { ok: false, mensaje: e.message };
-      throw e;
-    }
-  }, [v, ad]);
+  useEffect(() => {
+    navigator.storage?.persist?.(); // pide al navegador no borrar los datos por falta de espacio
+    listarProyectos().then((l) => setProyectos(l.sort((a, b) => b.actualizado.localeCompare(a.actualizado))))
+      .catch(() => { setProyectos([]); setAviso("No se pudo abrir el almacenamiento local de este navegador."); });
+  }, []);
+
+  /** Actualiza un proyecto en pantalla y lo guarda; nunca borra otros datos. */
+  const guardar = (p: Proyecto) => {
+    p = { ...p, actualizado: ahora() };
+    setProyectos(ref.current.some((x) => x.id === p.id) ? ref.current.map((x) => (x.id === p.id ? p : x)) : [p, ...ref.current]);
+    guardarProyecto(p).catch(() => setAviso("No se pudo guardar. Exporta una copia JSON por seguridad."));
+  };
+  const proyecto = (id: string) => ref.current.find((p) => p.id === id);
+
+  const nuevoProyecto = () => {
+    const nombre = window.prompt("Nombre del proyecto", "Vivienda unifamiliar")?.trim();
+    if (!nombre) return;
+    const t = ahora();
+    const p: Proyecto = { id: nuevoId(), nombre, creado: t, actualizado: t, elementos: [] };
+    guardar(p); setVista({ t: "proyecto", pid: p.id });
+  };
+  const codigoNuevo = (p: Proyecto) => {
+    let i = p.elementos.length + 1, c = "";
+    do { c = `V-${String(i++).padStart(2, "0")}`; } while (p.elementos.some((e) => e.codigo === c));
+    return c;
+  };
+  const agregar = (p: Proyecto, datos: DatosViga) => {
+    const t = ahora();
+    const e: Elemento = { id: nuevoId(), tipo: "viga", codigo: codigoNuevo(p), datos: copia(datos), creado: t, actualizado: t };
+    guardar({ ...p, elementos: [...p.elementos, e] });
+    return e;
+  };
+  const cambiarDatos = (pid: string, eid: string, datos: DatosViga) => {
+    window.clearTimeout(temporizador.current);
+    temporizador.current = window.setTimeout(() => {
+      const p = proyecto(pid), e = p?.elementos.find((x) => x.id === eid);
+      if (!p || !e || JSON.stringify(e.datos) === JSON.stringify(datos)) return; // abrir no modifica la fecha
+      guardar({ ...p, elementos: p.elementos.map((x) => (x.id === eid ? { ...x, datos, actualizado: ahora() } : x)) });
+    }, 600);
+  };
+  const importar = async (f?: File) => {
+    if (!f) return;
+    try { const p = importarJSON(await f.text()); guardar(p); setAviso(`Importado como "${p.nombre}".`); }
+    catch (x) { setAviso(x instanceof ErrorDeDatos ? x.message : "No se pudo leer el archivo."); }
+  };
+
+  if (proyectos === null) return <main className="app"><p className="pie">Abriendo tus proyectos…</p></main>;
+
+  if (vista.t === "editor") {
+    const p = proyecto(vista.pid), e = p?.elementos.find((x) => x.id === vista.eid);
+    if (p && e)
+      return <EditorViga key={e.id} titulo={e.codigo} inicial={e.datos}
+        onCambio={(d) => cambiarDatos(p.id, e.id, d)} onVolver={() => setVista({ t: "proyecto", pid: p.id })} />;
+  }
+
+  if (vista.t === "proyecto") {
+    const p = proyecto(vista.pid);
+    if (p) return <PantallaProyecto p={p} aviso={aviso} setAviso={setAviso}
+      volver={() => setVista({ t: "lista" })}
+      abrir={(eid) => setVista({ t: "editor", pid: p.id, eid })}
+      nuevaViga={() => { const e = agregar(p, DATOS_INICIALES); setVista({ t: "editor", pid: p.id, eid: e.id }); }}
+      duplicar={(e) => agregar(p, e.datos)}
+      renombrar={(e) => { const c = window.prompt("Código del elemento", e.codigo)?.trim(); if (c) guardar({ ...p, elementos: p.elementos.map((x) => (x.id === e.id ? { ...x, codigo: c, actualizado: ahora() } : x)) }); }}
+      eliminar={(e) => { if (window.confirm(`¿Eliminar ${e.codigo}? No se puede deshacer.`)) guardar({ ...p, elementos: p.elementos.filter((x) => x.id !== e.id) }); }}
+      renombrarProyecto={() => { const n = window.prompt("Nombre del proyecto", p.nombre)?.trim(); if (n) guardar({ ...p, nombre: n }); }} />;
+  }
 
   return (
     <main className="app">
-      <header className="cabecera">
-        <h1>Viga de concreto</h1>
-        <p>Cantidades geométricas · sin conexión</p>
-      </header>
-      <section className="entradas" aria-label="Geometría">
-        <Campo et="Ancho b" u="cm" val={v.b} f={set("b")} />
-        <Campo et="Altura h" u="cm" val={v.h} f={set("h")} />
-        <Campo et="Longitud L" u="m" val={v.L} f={set("L")} />
-        <Campo et="Recubrimiento" u="cm" val={v.recub} f={set("recub")} />
-        <Campo et="Margen concreto" u="%" val={v.margen} f={set("margen")} />
-      </section>
-      <section className="entradas" aria-label="Refuerzo">
-        <Campo et="Barras sup." u="un" val={v.ns} f={set("ns")} />
-        <Sel et="Diámetro" val={v.bs} f={set("bs")} />
-        <span />
-        <Campo et="Barras inf." u="un" val={v.ni} f={set("ni")} />
-        <Sel et="Diámetro" val={v.bi} f={set("bi")} />
-        <span />
-        <Sel et="Estribo" val={v.be} f={set("be")} />
-        <Campo et="Sep. central" u="cm" val={v.sep} f={set("sep")} />
-        <Campo et="Gancho" u="cm" val={v.gancho} f={set("gancho")} />
-        <Campo et="Zona extrema" u="cm" val={v.zl} f={set("zl")} />
-        <Campo et="Sep. en zona" u="cm" val={v.zs} f={set("zs")} />
-      </section>
-
-      <section className="entradas" aria-label="Refuerzo adicional">
-        <div className="sub"><strong>Refuerzo adicional</strong>
-          <button className="btn" onClick={() => setAd([...ad, { grupo: "sup", cant: "2", barra: "#5", desde: "0", long: "100" }])}>+ Agregar</button></div>
-        <Campo et="Sep. entre capas" u="cm" val={v.sepc} f={set("sepc")} />
-        {ad.map((a, i) => (
-          <div className="item" key={i}>
-            <label className="campo"><span>Ubicación</span><div>
-              <select value={a.grupo} onChange={(e) => setA(i, "grupo", e.target.value)}><option value="sup">Superior</option><option value="inf">Inferior</option></select></div></label>
-            <Campo et="Cantidad" u="un" val={a.cant} f={(x) => setA(i, "cant", x)} />
-            <Sel et="Diámetro" val={a.barra} f={(x) => setA(i, "barra", x)} />
-            <Campo et="Desde" u="cm" val={a.desde} f={(x) => setA(i, "desde", x)} />
-            <Campo et="Longitud" u="cm" val={a.long} f={(x) => setA(i, "long", x)} />
-            <button className="btn" onClick={() => setAd(ad.filter((_, j) => j !== i))}>Quitar</button>
+      <header className="cabecera"><h1>Calculadora de obra</h1><p>Tus proyectos se guardan solo en este teléfono</p></header>
+      {aviso && <div className="nota alerta" onClick={() => setAviso("")}>{aviso}</div>}
+      <div className="barra">
+        <button className="btn principal" onClick={nuevoProyecto}>+ Nuevo proyecto</button>
+        <label className="btn">Importar copia<input type="file" accept=".json,application/json" hidden onChange={(e) => { importar(e.target.files?.[0]); e.target.value = ""; }} /></label>
+      </div>
+      {proyectos.length === 0 ? (
+        <section className="vacio"><strong>Aún no tienes proyectos</strong><p>Crea uno para guardar tus vigas y ver las cantidades de toda la obra juntas.</p></section>
+      ) : proyectos.map((p) => (
+        <section className="rotulo" key={p.id}>
+          <div className="rotulo-fila"><strong>{p.nombre}</strong><span>{p.elementos.length} elementos · {fecha(p.actualizado)}</span></div>
+          <div className="barra" style={{ padding: 10 }}>
+            <button className="btn" onClick={() => setVista({ t: "proyecto", pid: p.id })}>Abrir</button>
+            <button className="btn" onClick={() => { if (window.confirm(`¿Eliminar el proyecto "${p.nombre}" y todos sus elementos? Se recomienda exportar una copia antes.`)) { borrarProyecto(p.id); setProyectos(proyectos.filter((x) => x.id !== p.id)); } }}>Eliminar</button>
           </div>
-        ))}
-      </section>
-
-      {est.ok ? (
-        <>
-          <Seccion e={est.e} />
-          <Longitudinal e={est.e} />
-          <section className="rotulo" aria-live="polite">
-            <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
-            <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />
-            <Fila t="Formaleta" x={`${formatear(est.r.formaleta.valor, 2)} m²`} />
-            {Object.entries(est.r.pesoPorBarra).map(([b, p]) => (
-              <Fila key={b} t={`Acero ${b}`} x={`${formatear(p, 1)} kg`} />
-            ))}
-            <div className="rotulo-fila resultado"><span>Acero total</span><strong>{formatear(est.r.pesoTotal, 1)} kg</strong></div>
-          </section>
-          <section className="rotulo">
-            <div className="rotulo-fila titulo">Despiece</div>
-            <table className="tabla">
-              <thead><tr><th>Pieza</th><th>Barra</th><th>Cant.</th><th>Corte (m)</th><th>Peso (kg)</th></tr></thead>
-              <tbody>
-                {est.r.despiece.map((f) => (
-                  <tr key={f.id}>
-                    <td>{f.descripcion}</td><td>{f.barra}</td><td>{f.cantidad}</td>
-                    <td>{formatear(f.longCorte, 2)}</td><td>{formatear(f.pesoTotal, 1)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {est.r.advertencias.map((a) => <div className="nota alerta" key={a}>Atención: {a}</div>)}
-          </section>
-        </>
-      ) : (
-        <section className="rotulo"><div className="rotulo-fila error">{est.mensaje}</div></section>
-      )}
-      <footer className="pie">Cálculo geométrico de cantidades. No certifica la seguridad estructural del elemento.</footer>
+        </section>
+      ))}
     </main>
   );
 }
 
-const Fila = (p: { t: string; x: string }) => <div className="rotulo-fila"><span>{p.t}</span><strong>{p.x}</strong></div>;
-
-function Campo(p: { et: string; u: string; val: string; f: (v: string) => void }) {
+function PantallaProyecto(props: {
+  p: Proyecto; aviso: string; setAviso: (s: string) => void; volver: () => void; abrir: (id: string) => void; nuevaViga: () => void;
+  duplicar: (e: Elemento) => void; renombrar: (e: Elemento) => void; eliminar: (e: Elemento) => void; renombrarProyecto: () => void;
+}) {
+  const { p } = props;
+  const c = useMemo(() => consolidar(p), [p]);
+  const nombreArchivo = p.nombre.replace(/[^\w\-]+/g, "_");
   return (
-    <label className="campo"><span>{p.et}</span>
-      <div><input inputMode="decimal" value={p.val} onChange={(e) => p.f(e.target.value)} /><em>{p.u}</em></div>
-    </label>
-  );
-}
-function Sel(p: { et: string; val: string; f: (v: string) => void }) {
-  return (
-    <label className="campo"><span>{p.et}</span>
-      <div><select value={p.val} onChange={(e) => p.f(e.target.value)}>{BARRAS.map((b) => <option key={b}>{b}</option>)}</select></div>
-    </label>
+    <main className="app">
+      <header className="cabecera">
+        <button className="btn" onClick={props.volver}>← Proyectos</button>
+        <h1 onClick={props.renombrarProyecto}>{p.nombre}</h1><p>Toca el nombre para cambiarlo</p>
+      </header>
+      {props.aviso && <div className="nota alerta" onClick={() => props.setAviso("")}>{props.aviso}</div>}
+      <div className="barra">
+        <button className="btn principal" onClick={props.nuevaViga}>+ Viga</button>
+        <button className="btn" disabled={!p.elementos.length} onClick={() => descargar(`${nombreArchivo}-despiece.csv`, csvDespiece(p), "text/csv;charset=utf-8")}>CSV</button>
+        <button className="btn" onClick={() => descargar(`${nombreArchivo}.json`, exportarJSON(p), "application/json")}>Copia JSON</button>
+      </div>
+      {p.elementos.length === 0 ? (
+        <section className="vacio"><strong>Este proyecto no tiene elementos</strong><p>Agrega una viga para empezar. Después podrás duplicarla y cambiar solo lo necesario.</p></section>
+      ) : (
+        <>
+          {p.elementos.map((e, i) => {
+            const f = c.filas[i];
+            return (
+              <section className="rotulo" key={e.id}>
+                <div className="rotulo-fila"><strong>{e.codigo}</strong>
+                  <span>{f.r ? `${formatear(f.r.concreto.valor, 3)} m³ · ${formatear(f.r.pesoTotal, 1)} kg` : "revisar datos"}</span></div>
+                {f.error && <div className="nota alerta">{f.error}</div>}
+                <div className="barra" style={{ padding: 10 }}>
+                  <button className="btn" onClick={() => props.abrir(e.id)}>Abrir</button>
+                  <button className="btn" onClick={() => props.duplicar(e)}>Duplicar</button>
+                  <button className="btn" onClick={() => props.renombrar(e)}>Código</button>
+                  <button className="btn" onClick={() => props.eliminar(e)}>Eliminar</button>
+                </div>
+              </section>
+            );
+          })}
+          <section className="rotulo">
+            <div className="rotulo-fila titulo">Consolidado del proyecto</div>
+            <div className="rotulo-fila"><span>Concreto geométrico</span><strong>{formatear(c.concreto, 3)} m³</strong></div>
+            <div className="rotulo-fila"><span>Concreto a comprar</span><strong>{formatear(c.compra, 3)} m³</strong></div>
+            <div className="rotulo-fila"><span>Formaleta</span><strong>{formatear(c.formaleta, 2)} m²</strong></div>
+            {Object.entries(c.acero).sort().map(([b, w]) => <div className="rotulo-fila" key={b}><span>Acero {b}</span><strong>{formatear(w, 1)} kg</strong></div>)}
+            <div className="rotulo-fila resultado"><span>Acero total</span><strong>{formatear(c.aceroTotal, 1)} kg</strong></div>
+            {c.filas.some((f) => f.error) && <div className="nota alerta">Los elementos con datos por revisar no están incluidos en estas sumas.</div>}
+          </section>
+        </>
+      )}
+      <footer className="pie">Cálculo geométrico de cantidades. No certifica la seguridad estructural de los elementos.</footer>
+    </main>
   );
 }

@@ -93,3 +93,10 @@ body {
 .btn { min-height: 44px; padding: 0 14px; border: 1.5px solid var(--plano); border-radius: 6px; background: transparent; color: var(--tinta); font: inherit; }
 .sec-ad { fill: var(--tinta); }
 .lon-ad { stroke: var(--tinta); }
+.barra { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn.principal { background: var(--estaca); border-color: var(--estaca); color: #12212c; font-weight: 600; }
+.btn:disabled { opacity: 0.45; }
+.btn { display: inline-flex; align-items: center; cursor: pointer; }
+.cabecera h1 { margin-top: 10px; }
+.vacio { background: var(--fondo-campo); border: 2px dashed var(--linea); padding: 20px; }
+.vacio p { margin: 6px 0 0; color: var(--suave); }
