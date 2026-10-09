@@ -120,16 +120,16 @@ export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: st
   );
 }
 
-const Fila = (p: { t: string; x: string }) => <div className="rotulo-fila"><span>{p.t}</span><strong>{p.x}</strong></div>;
+export const Fila = (p: { t: string; x: string }) => <div className="rotulo-fila"><span>{p.t}</span><strong>{p.x}</strong></div>;
 
-function Campo(p: { et: string; u: string; val: string; f: (v: string) => void }) {
+export function Campo(p: { et: string; u: string; val: string; f: (v: string) => void }) {
   return (
     <label className="campo"><span>{p.et}</span>
       <div><input inputMode="decimal" value={p.val} onChange={(e) => p.f(e.target.value)} /><em>{p.u}</em></div>
     </label>
   );
 }
-function Sel(p: { et: string; val: string; f: (v: string) => void }) {
+export function Sel(p: { et: string; val: string; f: (v: string) => void }) {
   return (
     <label className="campo"><span>{p.et}</span>
       <div><select value={p.val} onChange={(e) => p.f(e.target.value)}>{BARRAS.map((b) => <option key={b}>{b}</option>)}</select></div>

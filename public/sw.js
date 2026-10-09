@@ -1,6 +1,6 @@
 // Service worker: red primero, caché como respaldo. Tras la primera carga,
 // la app abre sin internet. Subir VERSION fuerza limpiar cachés antiguos.
-const VERSION = "obra-v9";
+const VERSION = "obra-v10";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(["./", "manifest.webmanifest"])));

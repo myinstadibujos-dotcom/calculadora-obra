@@ -1,5 +1,6 @@
 import type { Barra } from "./engine/barras";
 import type { EntradaViga, Gancho } from "./engine/viga";
+import type { EntradaColumna } from "./engine/columna";
 import { leerNumero as n } from "./engine/numeros";
 
 export type Ad = { grupo: "sup" | "inf"; cant: string; barra: Barra; desde: string; long: string; ge: string; gt: string; gl: string };
@@ -40,7 +41,28 @@ export function toEntrada(datos: DatosViga): EntradaViga {
   };
 }
 
-export interface Elemento { id: string; tipo: "viga"; codigo: string; datos: DatosViga; creado: string; actualizado: string }
+export interface DatosColumna {
+  v: { b: string; h: string; H: string; recub: string; barra: Barra; nb: string; nh: string; pata: string; espera: string;
+       be: Barra; sep: string; gancho: string; zl: string; zs: string; ntb: string; nth: string; gtr: string; margen: string };
+}
+export const COLUMNA_INICIAL: DatosColumna = {
+  v: { b: "30", h: "30", H: "3,00", recub: "4", barra: "#5", nb: "3", nh: "3", pata: "0", espera: "0", be: "#3",
+       sep: "15", gancho: "0", zl: "0", zs: "10", ntb: "0", nth: "0", gtr: "0", margen: "5" },
+};
+export function toEntradaColumna({ v }: DatosColumna): EntradaColumna {
+  const cm = (s: string) => n(s) / 100;
+  return {
+    b: cm(v.b), h: cm(v.h), H: n(v.H), recub: cm(v.recub), barra: v.barra, nb: n(v.nb), nh: n(v.nh),
+    pataInf: cm(v.pata), esperaSup: cm(v.espera),
+    estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho), zonaLong: cm(v.zl), zonaSep: cm(v.zs) },
+    trabasB: n(v.ntb), trabasH: n(v.nth), ganchoTraba: cm(v.gtr), margenConcretoPct: n(v.margen),
+  };
+}
+
+interface ElementoBase { id: string; codigo: string; creado: string; actualizado: string }
+export type ElementoViga = ElementoBase & { tipo: "viga"; datos: DatosViga };
+export type ElementoColumna = ElementoBase & { tipo: "columna"; datos: DatosColumna };
+export type Elemento = ElementoViga | ElementoColumna;
 export interface Proyecto { id: string; nombre: string; creado: string; actualizado: string; elementos: Elemento[] }
 
 export const nuevoId = (): string => crypto.randomUUID();
