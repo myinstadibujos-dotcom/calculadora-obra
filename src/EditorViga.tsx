@@ -139,7 +139,7 @@ export function Sel(p: { et: string; val: string; f: (v: string) => void }) {
 
 const EXT: [string, string][] = [["ninguno", "Sin gancho"], ["ambos", "Ambos extremos"], ["izq", "Extremo izq."], ["der", "Extremo der."]];
 const TIPO: [string, string][] = [["90", "90°"], ["135", "135°"], ["180", "180°"]];
-function Opc(p: { et: string; val: string; f: (v: string) => void; op: [string, string][] }) {
+export function Opc(p: { et: string; val: string; f: (v: string) => void; op: [string, string][] }) {
   return (
     <label className="campo"><span>{p.et}</span>
       <div><select value={p.val} onChange={(e) => p.f(e.target.value)}>{p.op.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></div>

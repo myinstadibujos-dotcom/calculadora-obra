@@ -1,6 +1,7 @@
 import type { Barra } from "./engine/barras";
 import type { EntradaViga, Gancho } from "./engine/viga";
 import type { EntradaColumna } from "./engine/columna";
+import type { Materiales } from "./engine/materiales";
 import { leerNumero as n } from "./engine/numeros";
 
 export type Ad = { grupo: "sup" | "inf"; cant: string; barra: Barra; desde: string; long: string; ge: string; gt: string; gl: string };
@@ -63,7 +64,7 @@ interface ElementoBase { id: string; codigo: string; creado: string; actualizado
 export type ElementoViga = ElementoBase & { tipo: "viga"; datos: DatosViga };
 export type ElementoColumna = ElementoBase & { tipo: "columna"; datos: DatosColumna };
 export type Elemento = ElementoViga | ElementoColumna;
-export interface Proyecto { id: string; nombre: string; creado: string; actualizado: string; elementos: Elemento[] }
+export interface Proyecto { id: string; nombre: string; creado: string; actualizado: string; elementos: Elemento[]; materiales?: Materiales }
 
 export const nuevoId = (): string => crypto.randomUUID();
 export const ahora = (): string => new Date().toISOString();

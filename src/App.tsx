@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { borrarProyecto, guardarProyecto, listarProyectos } from "./almacen";
 import { consolidar, csvDespiece, descargar, exportarJSON, importarJSON } from "./archivo";
 import { ErrorDeDatos } from "./engine/tipos";
+import { completarMateriales, type Materiales } from "./engine/materiales";
+import { MaterialesProyecto } from "./MaterialesProyecto";
 import { formatear } from "./engine/numeros";
 import { EditorViga } from "./EditorViga";
 import { EditorColumna } from "./EditorColumna";
@@ -21,7 +23,7 @@ export function App() {
 
   useEffect(() => {
     navigator.storage?.persist?.(); // pide al navegador no borrar los datos por falta de espacio
-    listarProyectos().then((l) => l.map((p) => ({ ...p, elementos: p.elementos.map((e) => (e.tipo === "viga" ? { ...e, datos: completar(e.datos) } : e)) }))).then((l) => setProyectos(l.sort((a, b) => b.actualizado.localeCompare(a.actualizado))))
+    listarProyectos().then((l) => l.map((p) => ({ ...p, materiales: completarMateriales(p.materiales), elementos: p.elementos.map((e) => (e.tipo === "viga" ? { ...e, datos: completar(e.datos) } : e)) }))).then((l) => setProyectos(l.sort((a, b) => b.actualizado.localeCompare(a.actualizado))))
       .catch(() => { setProyectos([]); setAviso("No se pudo abrir el almacenamiento local de este navegador."); });
   }, []);
 
@@ -87,6 +89,7 @@ export function App() {
       duplicar={(e) => agregar(p, e.tipo, e.datos)}
       renombrar={(e) => { const c = window.prompt("Código del elemento", e.codigo)?.trim(); if (c) guardar({ ...p, elementos: p.elementos.map((x) => (x.id === e.id ? { ...x, codigo: c, actualizado: ahora() } : x)) }); }}
       eliminar={(e) => { if (window.confirm(`¿Eliminar ${e.codigo}? No se puede deshacer.`)) guardar({ ...p, elementos: p.elementos.filter((x) => x.id !== e.id) }); }}
+      cambiarMateriales={(m) => guardar({ ...p, materiales: m })}
       renombrarProyecto={() => { const n = window.prompt("Nombre del proyecto", p.nombre)?.trim(); if (n) guardar({ ...p, nombre: n }); }} />;
   }
 
@@ -115,7 +118,7 @@ export function App() {
 
 function PantallaProyecto(props: {
   p: Proyecto; aviso: string; setAviso: (s: string) => void; volver: () => void; abrir: (id: string) => void; nuevo: (tipo: Elemento["tipo"]) => void;
-  duplicar: (e: Elemento) => void; renombrar: (e: Elemento) => void; eliminar: (e: Elemento) => void; renombrarProyecto: () => void;
+  duplicar: (e: Elemento) => void; renombrar: (e: Elemento) => void; eliminar: (e: Elemento) => void; renombrarProyecto: () => void; cambiarMateriales: (m: Materiales) => void;
 }) {
   const { p } = props;
   const c = useMemo(() => consolidar(p), [p]);
@@ -162,6 +165,7 @@ function PantallaProyecto(props: {
             <div className="rotulo-fila resultado"><span>Acero total</span><strong>{formatear(c.aceroTotal, 1)} kg</strong></div>
             {c.filas.some((f) => f.error) && <div className="nota alerta">Los elementos con datos por revisar no están incluidos en estas sumas.</div>}
           </section>
+          <MaterialesProyecto p={p} c={c} cambiar={props.cambiarMateriales} />
         </>
       )}
       <footer className="pie">Cálculo geométrico de cantidades. No certifica la seguridad estructural de los elementos.</footer>

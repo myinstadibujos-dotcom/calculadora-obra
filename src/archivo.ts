@@ -1,10 +1,13 @@
 import { calcularViga, type ResultadoViga } from "./engine/viga";
 import { calcularColumna } from "./engine/columna";
+import { completarMateriales } from "./engine/materiales";
 import { ErrorDeDatos } from "./engine/tipos";
 import { completar, toEntrada, toEntradaColumna, nuevoId, type Elemento, type Proyecto } from "./modelo";
 
-export const FORMATO = 3; // sube cuando cambie la estructura guardada; agrega una migración abajo
+export const FORMATO = 4; // sube cuando cambie la estructura guardada; agrega una migración abajo
 const MIGRACIONES: Record<number, (x: any) => any> = {
+  // 3 → 4: cada proyecto guarda sus parámetros de materiales y consumos
+  3: (o) => ({ ...o, formato: 4, proyecto: { ...o.proyecto, materiales: completarMateriales(o.proyecto?.materiales) } }),
   // 2 → 3: aparecen las columnas como nuevo tipo de elemento (los datos existentes no cambian)
   2: (o) => ({ ...o, formato: 3 }),
   // 1 → 2: se agregan los ganchos de las barras longitudinales y de los refuerzos adicionales
@@ -37,7 +40,7 @@ export function importarJSON(texto: string): Proyecto {
   }
   const t = new Date().toISOString();
   return {
-    id: nuevoId(), nombre: `${p.nombre} (importado)`, creado: p.creado ?? t, actualizado: t,
+    id: nuevoId(), nombre: `${p.nombre} (importado)`, materiales: completarMateriales(p.materiales), creado: p.creado ?? t, actualizado: t,
     elementos: p.elementos.map((e: any) => ({ ...e, id: nuevoId(), creado: e.creado ?? t, actualizado: e.actualizado ?? t })),
   };
 }
