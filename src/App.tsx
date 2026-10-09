@@ -11,7 +11,7 @@ type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mens
 export function App() {
   const [v, setV] = useState({
     b: "30", h: "40", L: "4,00", recub: "4", ns: "2", bs: "#4" as Barra, ni: "3", bi: "#5" as Barra,
-    be: "#3" as Barra, sep: "15", gancho: "0", margen: "5",
+    be: "#3" as Barra, sep: "15", gancho: "0", zl: "0", zs: "10", margen: "5",
   });
   const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
 
@@ -21,7 +21,7 @@ export function App() {
       const entrada: EntradaViga = {
         b: cm(v.b), h: cm(v.h), L: n(v.L), recub: cm(v.recub),
         sup: { cantidad: n(v.ns), barra: v.bs }, inf: { cantidad: n(v.ni), barra: v.bi },
-        estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho) },
+        estribo: { barra: v.be, separacion: cm(v.sep), gancho: cm(v.gancho), zonaLong: cm(v.zl), zonaSep: cm(v.zs) },
         margenConcretoPct: n(v.margen),
       };
       return { ok: true, r: calcularViga(entrada), e: entrada };
@@ -52,8 +52,10 @@ export function App() {
         <Sel et="Diámetro" val={v.bi} f={set("bi")} />
         <span />
         <Sel et="Estribo" val={v.be} f={set("be")} />
-        <Campo et="Separación" u="cm" val={v.sep} f={set("sep")} />
+        <Campo et="Sep. central" u="cm" val={v.sep} f={set("sep")} />
         <Campo et="Gancho" u="cm" val={v.gancho} f={set("gancho")} />
+        <Campo et="Zona extrema" u="cm" val={v.zl} f={set("zl")} />
+        <Campo et="Sep. en zona" u="cm" val={v.zs} f={set("zs")} />
       </section>
 
       {est.ok ? (

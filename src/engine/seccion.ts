@@ -1,5 +1,5 @@
 import { diametroMm } from "./barras";
-import { contarEstribos, type EntradaViga } from "./viga";
+import { posicionesEstribos, type EntradaViga } from "./viga";
 
 export interface BarraDibujo { x: number; y: number; d: number; grupo: "sup" | "inf" }
 export interface GeometriaSeccion {
@@ -34,18 +34,15 @@ export function geometriaSeccion(e: EntradaViga): GeometriaSeccion {
 
 export interface GeometriaLongitudinal {
   L: number; h: number; // metros
-  estribos: { x: number; y0: number; y1: number; espesor: number }[];
+  estribos: { x: number; y0: number; y1: number; espesor: number; zona: "ext" | "cen" }[];
   barras: { y: number; d: number; x0: number; x1: number; grupo: "sup" | "inf" }[];
 }
 
 /** Vista de elevación: estribos a separación constante desde la cara útil izquierda. */
 export function geometriaLongitudinal(e: EntradaViga): GeometriaLongitudinal {
   const dE = diametroMm(e.estribo.barra) / 1000;
-  const n = contarEstribos(e.L - 2 * e.recub, e.estribo.separacion);
-  const estribos = Array.from({ length: n }, (_, i) => ({
-    x: e.recub + i * e.estribo.separacion,
-    y0: e.recub + dE / 2, y1: e.h - e.recub - dE / 2, espesor: dE,
-  }));
+  const estribos = posicionesEstribos(e.L - 2 * e.recub, e.estribo.separacion, e.estribo.zonaLong ?? 0, e.estribo.zonaSep ?? 0)
+    .map((p) => ({ x: e.recub + p.x, y0: e.recub + dE / 2, y1: e.h - e.recub - dE / 2, espesor: dE, zona: p.zona }));
   const barras: GeometriaLongitudinal["barras"] = [];
   const capa = (g: EntradaViga["sup"], grupo: "sup" | "inf") => {
     if (g.cantidad === 0) return;

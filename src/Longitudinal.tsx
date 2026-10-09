@@ -13,7 +13,7 @@ export function Longitudinal({ e }: { e: EntradaViga }) {
          role="img" aria-label={`Vista longitudinal de ${g.L.toFixed(2)} m con ${g.estribos.length} estribos`}>
       <rect className="sec-concreto" x={0} y={0} width={W} height={H} />
       {g.estribos.map((s, i) => (
-        <line key={i} className="sec-estribo" x1={s.x * cm} x2={s.x * cm} y1={s.y0 * cm} y2={s.y1 * cm}
+        <line key={i} className={s.zona === "ext" ? "sec-estribo est-ext" : "sec-estribo"} x1={s.x * cm} x2={s.x * cm} y1={s.y0 * cm} y2={s.y1 * cm}
               strokeWidth={s.espesor * cm} />
       ))}
       {g.barras.map((b) => (
@@ -21,7 +21,7 @@ export function Longitudinal({ e }: { e: EntradaViga }) {
               strokeWidth={b.d * cm} />
       ))}
       <text className="sec-cota" x={W / 2} y={H + pad * 0.75} fontSize={fs} textAnchor="middle">
-        L = {g.L.toFixed(2)} m · {g.estribos.length} estribos
+        L = {g.L.toFixed(2)} m · {g.estribos.length} estribos{g.estribos.some((s) => s.zona === "ext") ? ` (${g.estribos.filter((s) => s.zona === "ext").length} en zonas extremas)` : ""}
       </text>
     </svg>
   );
