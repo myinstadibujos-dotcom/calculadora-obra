@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { BARRAS, Barra } from "./engine/barras";
 import { ErrorDeDatos } from "./engine/tipos";
 import { calcularViga, EntradaViga, ResultadoViga } from "./engine/viga";
@@ -6,6 +6,8 @@ import { Seccion } from "./Seccion";
 import { Ad, DatosViga, toEntrada } from "./modelo";
 import { Longitudinal } from "./Longitudinal";
 import { formatear, leerNumero as n } from "./engine/numeros";
+
+const Vista3D = lazy(() => import("./Vista3D").then((m) => ({ default: m.Vista3D })));
 
 type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mensaje: string };
 
@@ -75,6 +77,7 @@ export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: st
         <>
           <Seccion e={est.e} />
           <Longitudinal e={est.e} />
+          <Suspense fallback={<div className="nota">Cargando vista 3D…</div>}><Vista3D e={est.e} /></Suspense>
           <section className="rotulo" aria-live="polite">
             <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
             <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />
