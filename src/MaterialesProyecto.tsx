@@ -1,12 +1,12 @@
 import { descargar, type Consolidado } from "./archivo";
 import { calcularMateriales, completarMateriales, csvMateriales, type Materiales } from "./engine/materiales";
-import { aplicarReceta, RECETAS_REFERENCIA } from "./engine/recetas";
+import { aplicarReceta, RECETAS_USUARIO } from "./engine/recetas";
 import { formatear } from "./engine/numeros";
 import { nuevoId, type Proyecto } from "./modelo";
 import { Campo, Opc } from "./EditorViga";
 
 const DEC: Record<string, number> = { kg: 1, "m³": 3, L: 1, un: 0 };
-const dec = (u: string) => (u.startsWith("bultos") ? 0 : DEC[u] ?? 2);
+const dec = (u: string) => (u.startsWith("bultos") || u.startsWith("varillas") ? 0 : DEC[u] ?? 2);
 
 function Texto(p: { et: string; val: string; f: (v: string) => void }) {
   return (
@@ -21,10 +21,10 @@ export function MaterialesProyecto({ p, c, cambiar }: { p: Proyecto; c: Consolid
   const m = completarMateriales(p.materiales);
   const set = (k: keyof Materiales) => (x: string) => cambiar({ ...m, [k]: x });
   const setD = (k: keyof Materiales) => (x: string) => cambiar({ ...m, [k]: x, recetaSel: "custom" }); // editar una receta la vuelve personalizada
-  const existe = m.recetaSel.startsWith("mia:") ? m.recetas.some((x) => `mia:${x.id}` === m.recetaSel) : RECETAS_REFERENCIA.some((x) => x.id === m.recetaSel);
+  const existe = m.recetaSel.startsWith("mia:") ? m.recetas.some((x) => `mia:${x.id}` === m.recetaSel) : RECETAS_USUARIO.some((x) => x.id === m.recetaSel);
   const sel = m.recetaSel === "custom" || !existe ? "custom" : m.recetaSel;
   const elegir = (v: string) => {
-    const rc = v.startsWith("mia:") ? m.recetas.find((x) => `mia:${x.id}` === v) : RECETAS_REFERENCIA.find((x) => x.id === v);
+    const rc = v.startsWith("mia:") ? m.recetas.find((x) => `mia:${x.id}` === v) : RECETAS_USUARIO.find((x) => x.id === v);
     cambiar(rc ? aplicarReceta(m, rc, v) : { ...m, recetaSel: "custom" });
   };
   const guardarReceta = () => {
@@ -52,11 +52,11 @@ export function MaterialesProyecto({ p, c, cambiar }: { p: Proyecto; c: Consolid
             <label className="campo ancho"><span>Receta de dosificación</span>
               <div><select value={sel} onChange={(e) => elegir(e.target.value)}>
                 <option value="custom">Personalizada (escribes los valores)</option>
-                <optgroup label="Referencia · sin verificar">
-                  {RECETAS_REFERENCIA.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+                <optgroup label="Mis recetas habituales">
+                  {RECETAS_USUARIO.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
                 </optgroup>
                 {m.recetas.length > 0 && (
-                  <optgroup label="Mis recetas">
+                  <optgroup label="Guardadas en este proyecto">
                     {m.recetas.map((x) => <option key={x.id} value={`mia:${x.id}`}>{x.nombre}</option>)}
                   </optgroup>
                 )}
@@ -76,6 +76,18 @@ export function MaterialesProyecto({ p, c, cambiar }: { p: Proyecto; c: Consolid
             </div>
           </>
         )}
+        {c.plan.length > 0 && <div className="sub"><strong>Acero: cómo se compra</strong></div>}
+        {c.plan.map((pl) => {
+          const n = pl.barra.slice(1);
+          return (
+            <div className="item" key={pl.barra}>
+              <Opc et={`${pl.barra} · compra`} val={(m as any)[`compra${n}`]} f={set(`compra${n}` as keyof Materiales)}
+                op={[["kg", "Por kilos (chipa)"], ["6", "Varilla de 6 m"], ["12", "Varilla de 12 m"]]} />
+              <Campo et={`Traslapo ${pl.barra}`} u="cm" val={(m as any)[`lap${n}`] ?? ""} f={set(`lap${n}` as keyof Materiales)} />
+              <span />
+            </div>
+          );
+        })}
         <Campo et="Alambre" u="kg/kg" val={m.alambre} f={set("alambre")} />
         <Campo et="Clavos" u="kg/m²" val={m.clavos} f={set("clavos")} />
         <Campo et="Separadores" u="un/m²" val={m.separadores} f={set("separadores")} />

@@ -1,31 +1,34 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { BARRAS, Barra } from "./engine/barras";
 import { ErrorDeDatos } from "./engine/tipos";
-import { calcularViga, EntradaViga, ResultadoViga } from "./engine/viga";
+import { calcularViga, EntradaViga, FaltaTraslapo, ResultadoViga } from "./engine/viga";
+import { configAcero } from "./engine/materiales";
+import { PedirTraslapo } from "./Traslapo";
 import { Seccion } from "./Seccion";
-import { Ad, DatosViga, toEntrada } from "./modelo";
+import { Ad, AceroProyecto, DatosViga, toEntrada } from "./modelo";
 import { Longitudinal } from "./Longitudinal";
 import { formatear, leerNumero as n } from "./engine/numeros";
 
 const Vista3D = lazy(() => import("./Vista3D").then((m) => ({ default: m.Vista3D })));
 
-type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mensaje: string };
+type Estado = { ok: true; r: ResultadoViga; e: EntradaViga } | { ok: false; mensaje: string; falta?: Barra };
 
-export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: string; inicial: DatosViga; onCambio: (d: DatosViga) => void; onVolver: () => void }) {
+export function EditorViga({ titulo, inicial, acero, onCambio, onVolver }: { titulo: string; inicial: DatosViga; acero: AceroProyecto; onCambio: (d: DatosViga) => void; onVolver: () => void }) {
   const [v, setV] = useState(inicial.v);
   const [ad, setAd] = useState<Ad[]>(inicial.ad);
   const setA = (i: number, k: keyof Ad, x: string) => setAd(ad.map((a, j) => (j === i ? { ...a, [k]: x } : a)));
   const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
 
+  const cfg = configAcero(acero.m);
   const est: Estado = useMemo(() => {
     try {
       const entrada = toEntrada({ v, ad });
-      return { ok: true, r: calcularViga(entrada), e: entrada };
+      return { ok: true, r: calcularViga(entrada, cfg), e: entrada };
     } catch (e) {
-      if (e instanceof ErrorDeDatos) return { ok: false, mensaje: e.message };
+      if (e instanceof ErrorDeDatos) return { ok: false, mensaje: e.message, falta: e instanceof FaltaTraslapo ? e.barra : undefined };
       throw e;
     }
-  }, [v, ad]);
+  }, [v, ad, acero.m]);
   useEffect(() => { onCambio({ v, ad }); }, [v, ad]);
 
   return (
@@ -85,8 +88,8 @@ export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: st
       {est.ok ? (
         <>
           <Seccion e={est.e} />
-          <Longitudinal e={est.e} />
-          <Suspense fallback={<div className="nota">Cargando vista 3D…</div>}><Vista3D e={est.e} /></Suspense>
+          <Longitudinal e={est.e} acero={cfg} />
+          <Suspense fallback={<div className="nota">Cargando vista 3D…</div>}><Vista3D e={est.e} acero={cfg} /></Suspense>
           <section className="rotulo" aria-live="polite">
             <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
             <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />
@@ -113,7 +116,7 @@ export function EditorViga({ titulo, inicial, onCambio, onVolver }: { titulo: st
           </section>
         </>
       ) : (
-        <section className="rotulo"><div className="rotulo-fila error">{est.mensaje}</div></section>
+        <section className="rotulo"><div className="rotulo-fila error">{est.mensaje}</div>{est.falta && <PedirTraslapo barra={est.falta} acero={acero} />}</section>
       )}
       <footer className="pie">Cálculo geométrico de cantidades. No certifica la seguridad estructural del elemento.</footer>
     </main>

@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { diametroMm } from "./engine/barras";
 import { geometriaLongitudinal, geometriaSeccion } from "./engine/seccion";
-import { patasDeGancho, type EntradaViga } from "./engine/viga";
+import { patasDeGancho, varilla, zonasTraslapo, type ConfigAcero, type EntradaViga } from "./engine/viga";
 
 type Modo = "completo" | "armadura";
 interface Escena { grupo: THREE.Group; render: () => void; encuadrar: (e: EntradaViga) => void }
@@ -29,7 +29,7 @@ function cilindro(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Mate
 }
 
 /** Construye el modelo desde los mismos datos geométricos del cálculo. Ejes: x = longitud, y = altura, z = ancho. */
-function construir(g: THREE.Group, e: EntradaViga, modo: Modo) {
+function construir(g: THREE.Group, e: EntradaViga, modo: Modo, acero?: ConfigAcero) {
   limpiar(g);
   const { b, h, L, recub } = e;
   const dE = diametroMm(e.estribo.barra) / 1000;
@@ -50,12 +50,14 @@ function construir(g: THREE.Group, e: EntradaViga, modo: Modo) {
   const sec = geometriaSeccion(e);
   const ads = (e.adicionales ?? []).filter((a) => a.cantidad !== 0);
   let k = 0, n = 0;
+  const matLap = new THREE.MeshStandardMaterial({ color: col.estaca });
   for (const bar of sec.barras) {
     let x0 = recub, len = L - 2 * recub;
     let gancho = bar.grupo === "sup" ? e.sup.gancho : e.inf.gancho;
+    let barraId = bar.grupo === "sup" ? e.sup.barra : e.inf.barra;
     if (bar.adicional) {
       const a = ads[k];
-      gancho = a.gancho;
+      gancho = a.gancho; barraId = a.barra;
       x0 = recub + a.desde; len = a.longitud;
       if (++n === a.cantidad) { k++; n = 0; }
     }
@@ -68,6 +70,10 @@ function construir(g: THREE.Group, e: EntradaViga, modo: Modo) {
     const z = bar.x - b / 2;
     for (const [x1, y1, x2, y2] of patasDeGancho(gancho, bar.grupo, x0, x0 + len, bar.y, bar.d))
       g.add(cilindro(new THREE.Vector3(x1, h - y1, z), new THREE.Vector3(x2, h - y2, z), bar.d / 2, mat));
+    // Traslapos: la segunda barra se dibuja pegada a la primera, en amarillo
+    const off = (bar.grupo === "sup" ? -1 : 1) * bar.d * 1.05;
+    for (const [za, zb] of zonasTraslapo(len, varilla(acero, barraId), acero?.traslapo[barraId] ?? 0))
+      g.add(cilindro(new THREE.Vector3(x0 + za, h - bar.y + off, z), new THREE.Vector3(x0 + zb, h - bar.y + off, z), bar.d / 2, matLap));
   }
 
   // Estribos: 4 lados por estribo en UNA sola malla instanciada (un solo dibujo, liviano para el teléfono)
@@ -94,7 +100,7 @@ function construir(g: THREE.Group, e: EntradaViga, modo: Modo) {
   }
 }
 
-export function Vista3D({ e }: { e: EntradaViga }) {
+export function Vista3D({ e, acero }: { e: EntradaViga; acero?: ConfigAcero }) {
   const caja = useRef<HTMLDivElement>(null);
   const escena = useRef<Escena | null>(null);
   const encuadrado = useRef(false);
@@ -145,7 +151,7 @@ export function Vista3D({ e }: { e: EntradaViga }) {
   useEffect(() => {
     const s = escena.current;
     if (!s) return;
-    construir(s.grupo, e, modo);
+    construir(s.grupo, e, modo, acero);
     if (!encuadrado.current) { s.encuadrar(e); encuadrado.current = true; } else s.render();
   }, [e, modo]);
 

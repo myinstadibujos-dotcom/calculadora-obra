@@ -7,7 +7,7 @@ import { MaterialesProyecto } from "./MaterialesProyecto";
 import { formatear } from "./engine/numeros";
 import { EditorViga } from "./EditorViga";
 import { EditorColumna } from "./EditorColumna";
-import { ahora, COLUMNA_INICIAL, completar, DATOS_INICIALES, nuevoId, type DatosColumna, type DatosViga, type Elemento, type Proyecto } from "./modelo";
+import { ahora, COLUMNA_INICIAL, type AceroProyecto, completar, DATOS_INICIALES, nuevoId, type DatosColumna, type DatosViga, type Elemento, type Proyecto } from "./modelo";
 
 type Vista = { t: "lista" } | { t: "proyecto"; pid: string } | { t: "editor"; pid: string; eid: string };
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-CO");
@@ -33,6 +33,7 @@ export function App() {
     setProyectos(ref.current.some((x) => x.id === p.id) ? ref.current.map((x) => (x.id === p.id ? p : x)) : [p, ...ref.current]);
     guardarProyecto(p).catch(() => setAviso("No se pudo guardar. Exporta una copia JSON por seguridad."));
   };
+  const aceroDe = (p: Proyecto): AceroProyecto => ({ m: completarMateriales(p.materiales), cambiar: (m) => guardar({ ...p, materiales: m }) });
   const proyecto = (id: string) => ref.current.find((p) => p.id === id);
 
   const nuevoProyecto = () => {
@@ -73,10 +74,10 @@ export function App() {
   if (vista.t === "editor") {
     const p = proyecto(vista.pid), e = p?.elementos.find((x) => x.id === vista.eid);
     if (p && e && e.tipo === "viga")
-      return <EditorViga key={e.id} titulo={e.codigo} inicial={e.datos}
+      return <EditorViga key={e.id} titulo={e.codigo} inicial={e.datos} acero={aceroDe(p)}
         onCambio={(d) => cambiarDatos(p.id, e.id, d)} onVolver={() => setVista({ t: "proyecto", pid: p.id })} />;
     if (p && e && e.tipo === "columna")
-      return <EditorColumna key={e.id} titulo={e.codigo} inicial={e.datos}
+      return <EditorColumna key={e.id} titulo={e.codigo} inicial={e.datos} acero={aceroDe(p)}
         onCambio={(d) => cambiarDatos(p.id, e.id, d)} onVolver={() => setVista({ t: "proyecto", pid: p.id })} />;
   }
 

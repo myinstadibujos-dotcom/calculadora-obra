@@ -15,7 +15,7 @@ export interface EntradaViga {
 }
 export interface FilaDespiece {
   id: string; descripcion: string; barra: Barra;
-  cantidad: number; longCorte: number; longRecta: number; pesoUnit: number; pesoTotal: number;
+  cantidad: number; longCorte: number; longRecta: number; longTotal: number; empalmes: number; traslapo: number; pesoUnit: number; pesoTotal: number;
 }
 export interface ResultadoViga {
   concreto: ResultadoCalculo; volumenCompra: number; formaleta: ResultadoCalculo;
@@ -73,7 +73,30 @@ function ganchoDe(nombre: string, g: Gancho | undefined, run: number, centro: nu
   return { extra: n * g.pierna, texto: ` · ${n} gancho${n > 1 ? "s" : ""} ${g.tipo}° (pierna ${(g.pierna * 100).toFixed(0)} cm)` };
 }
 
-export function calcularViga(e: EntradaViga): ResultadoViga {
+/** Compra y traslapos por diámetro (traslapo en metros). "kg" = se compra por peso, sin límite de longitud. */
+export interface ConfigAcero { compra: Partial<Record<Barra, "6" | "12" | "kg">>; traslapo: Partial<Record<Barra, number>> }
+export class FaltaTraslapo extends ErrorDeDatos { barra: Barra; constructor(barra: Barra, mensaje: string) { super(mensaje); this.barra = barra; } }
+export function varilla(c: ConfigAcero | undefined, b: Barra): number | null {
+  const v = c?.compra[b];
+  return v === "6" ? 6 : v === "12" ? 12 : null;
+}
+/** Zonas [inicio, fin] (m, relativas al inicio del tramo recto) donde dos varillas se traslapan. */
+export function zonasTraslapo(run: number, Lc: number | null, lap: number): [number, number][] {
+  if (Lc === null || run <= Lc + 1e-9 || !(lap > 0) || lap >= Lc) return [];
+  const k = Math.ceil((run - lap) / (Lc - lap) - 1e-9);
+  return Array.from({ length: k - 1 }, (_, i) => [(i + 1) * (Lc - lap), (i + 1) * (Lc - lap) + lap] as [number, number]);
+}
+/** Cuántos traslapos exige un tramo recto con la varilla elegida; si falta el dato del traslapo, lo pide. */
+export function empalmesDe(acero: ConfigAcero | undefined, barra: Barra, run: number, nombre: string) {
+  const Lc = varilla(acero, barra);
+  if (Lc === null || run <= Lc + 1e-9) return { n: 0, lap: 0 };
+  const lap = acero?.traslapo[barra];
+  if (!(lap !== undefined && lap > 0)) throw new FaltaTraslapo(barra, `${nombre}: mide ${run.toFixed(2)} m y la varilla ${barra} es de ${Lc} m. Define de cuánto será el traslapo para ${barra}.`);
+  if (lap >= Lc) throw new ErrorDeDatos(`Traslapo ${barra}: debe ser menor que la varilla (${Lc} m).`);
+  return { n: Math.ceil((run - lap) / (Lc - lap) - 1e-9) - 1, lap };
+}
+
+export function calcularViga(e: EntradaViga, acero?: ConfigAcero): ResultadoViga {
   const concreto = volumenPrisma(e.b, e.h, e.L); // valida b, h, L
   const { b, h, L, recub } = e;
   if (!(recub >= 0)) throw new ErrorDeDatos("Recubrimiento: no puede ser negativo.");
@@ -88,9 +111,10 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
 
   const adv = [...concreto.advertencias];
   const despiece: FilaDespiece[] = [];
-  const fila = (id: string, descripcion: string, barra: Barra, cantidad: number, longCorte: number, longRecta = longCorte) => {
-    const pesoUnit = longCorte * pesoPorMetro(barra);
-    despiece.push({ id, descripcion, barra, cantidad, longCorte, longRecta, pesoUnit, pesoTotal: pesoUnit * cantidad });
+  const fila = (id: string, descripcion: string, barra: Barra, cantidad: number, longCorte: number, longRecta = longCorte, emp = { n: 0, lap: 0 }) => {
+    const longTotal = longCorte + emp.n * emp.lap;
+    const pesoUnit = longTotal * pesoPorMetro(barra);
+    despiece.push({ id, descripcion: descripcion + (emp.n > 0 ? ` · ${emp.n + 1} tramos, traslapo ${(emp.lap * 100).toFixed(0)} cm` : ""), barra, cantidad, longCorte, longRecta, longTotal, empalmes: emp.n, traslapo: emp.lap, pesoUnit, pesoTotal: pesoUnit * cantidad });
   };
 
   const longitudinal = (id: string, nombre: string, g: GrupoBarras) => {
@@ -100,7 +124,7 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
       throw new ErrorDeDatos(`Barras ${nombre}: no caben en el ancho de la viga.`);
     const d = diametroMm(g.barra) / 1000;
     const hk = ganchoDe(`Barras ${nombre}`, g.gancho, largoUtil, recub + dE + d / 2, d, h, recub, dE);
-    fila(id, `Longitudinal ${nombre}${hk.texto}`, g.barra, g.cantidad, largoUtil + hk.extra, largoUtil);
+    fila(id, `Longitudinal ${nombre}${hk.texto}`, g.barra, g.cantidad, largoUtil + hk.extra, largoUtil, empalmesDe(acero, g.barra, largoUtil, `Barras ${nombre}`));
   };
   longitudinal("L-sup", "superior", e.sup);
   longitudinal("L-inf", "inferior", e.inf);
@@ -117,7 +141,7 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
     if (a.cantidad * d > b - 2 * recub - 2 * dE) throw new ErrorDeDatos(`${t}: las barras no caben en el ancho de la viga.`);
     ocupa[a.grupo] = Math.max(ocupa[a.grupo], desplazamientoCapa2(e, a.grupo) + d);
     const hk = ganchoDe(t, a.gancho, a.longitud, recub + dE + desplazamientoCapa2(e, a.grupo) + d / 2, d, h, recub, dE);
-    fila(`A-${i + 1}`, `Adicional ${a.grupo === "sup" ? "superior" : "inferior"} (${(a.desde * 100).toFixed(0)}–${((a.desde + a.longitud) * 100).toFixed(0)} cm)${hk.texto}`, a.barra, a.cantidad, a.longitud + hk.extra, a.longitud);
+    fila(`A-${i + 1}`, `Adicional ${a.grupo === "sup" ? "superior" : "inferior"} (${(a.desde * 100).toFixed(0)}–${((a.desde + a.longitud) * 100).toFixed(0)} cm)${hk.texto}`, a.barra, a.cantidad, a.longitud + hk.extra, a.longitud, empalmesDe(acero, a.barra, a.longitud, t));
     for (let j = 0; j < i; j++) {
       const o = ads[j];
       if (o.grupo === a.grupo && a.desde < o.desde + o.longitud && o.desde < a.desde + a.longitud)
@@ -153,6 +177,8 @@ export function calcularViga(e: EntradaViga): ResultadoViga {
 
   if (despiece.some((f) => f.longCorte - f.longRecta > 1e-9))
     adv.push("Ganchos: corte = tramo recto + piernas medidas desde el vértice del doblez, sin descontar radios de doblez. Ángulo y pierna los defines tú; no están verificados contra la NSR-10 en esta app.");
+  if (despiece.some((f) => f.empalmes > 0))
+    adv.push("Traslapos: el largo total de cada barra suma los traslapos al corte. La longitud del traslapo es un dato tuyo, no verificado contra la NSR-10 en esta app.");
   const pesoPorBarra: Record<string, number> = {};
   for (const f of despiece) pesoPorBarra[f.barra] = (pesoPorBarra[f.barra] ?? 0) + f.pesoTotal;
 

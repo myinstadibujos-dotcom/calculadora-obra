@@ -66,5 +66,8 @@ export type ElementoColumna = ElementoBase & { tipo: "columna"; datos: DatosColu
 export type Elemento = ElementoViga | ElementoColumna;
 export interface Proyecto { id: string; nombre: string; creado: string; actualizado: string; elementos: Elemento[]; materiales?: Materiales }
 
+/** Parámetros de acero del proyecto, visibles desde los editores de elementos. */
+export interface AceroProyecto { m: Materiales; cambiar: (m: Materiales) => void }
+
 export const nuevoId = (): string => crypto.randomUUID();
 export const ahora = (): string => new Date().toISOString();

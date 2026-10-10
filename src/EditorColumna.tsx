@@ -3,25 +3,29 @@ import { BARRAS } from "./engine/barras";
 import { calcularColumna, geometriaColumna, type EntradaColumna, type GeometriaColumna } from "./engine/columna";
 import { formatear } from "./engine/numeros";
 import { ErrorDeDatos } from "./engine/tipos";
-import type { ResultadoViga } from "./engine/viga";
-import { toEntradaColumna, type DatosColumna } from "./modelo";
+import { FaltaTraslapo, type ResultadoViga } from "./engine/viga";
+import { configAcero } from "./engine/materiales";
+import type { Barra } from "./engine/barras";
+import { PedirTraslapo } from "./Traslapo";
+import { toEntradaColumna, type AceroProyecto, type DatosColumna } from "./modelo";
 import { Campo, Fila, Sel } from "./EditorViga";
 
 const Vista3DColumna = lazy(() => import("./Vista3DColumna").then((m) => ({ default: m.Vista3DColumna })));
-type Estado = { ok: true; r: ResultadoViga; e: EntradaColumna } | { ok: false; mensaje: string };
+type Estado = { ok: true; r: ResultadoViga; e: EntradaColumna } | { ok: false; mensaje: string; falta?: Barra };
 
-export function EditorColumna({ titulo, inicial, onCambio, onVolver }: { titulo: string; inicial: DatosColumna; onCambio: (d: DatosColumna) => void; onVolver: () => void }) {
+export function EditorColumna({ titulo, inicial, acero, onCambio, onVolver }: { titulo: string; inicial: DatosColumna; acero: AceroProyecto; onCambio: (d: DatosColumna) => void; onVolver: () => void }) {
   const [v, setV] = useState(inicial.v);
   const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
+  const cfg = configAcero(acero.m);
   const est: Estado = useMemo(() => {
     try {
       const entrada = toEntradaColumna({ v });
-      return { ok: true, r: calcularColumna(entrada), e: entrada };
+      return { ok: true, r: calcularColumna(entrada, cfg), e: entrada };
     } catch (x) {
-      if (x instanceof ErrorDeDatos) return { ok: false, mensaje: x.message };
+      if (x instanceof ErrorDeDatos) return { ok: false, mensaje: x.message, falta: x instanceof FaltaTraslapo ? x.barra : undefined };
       throw x;
     }
-  }, [v]);
+  }, [v, acero.m]);
   useEffect(() => { onCambio({ v }); }, [v]);
 
   return (
@@ -60,8 +64,8 @@ export function EditorColumna({ titulo, inicial, onCambio, onVolver }: { titulo:
       {est.ok ? (
         <>
           <SeccionC g={geometriaColumna(est.e)} />
-          <AlzadoC g={geometriaColumna(est.e)} />
-          <Suspense fallback={<div className="nota">Cargando vista 3D…</div>}><Vista3DColumna e={est.e} /></Suspense>
+          <AlzadoC g={geometriaColumna(est.e, cfg)} />
+          <Suspense fallback={<div className="nota">Cargando vista 3D…</div>}><Vista3DColumna e={est.e} acero={cfg} /></Suspense>
           <section className="rotulo" aria-live="polite">
             <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
             <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />
@@ -84,7 +88,7 @@ export function EditorColumna({ titulo, inicial, onCambio, onVolver }: { titulo:
           </section>
         </>
       ) : (
-        <section className="rotulo"><div className="rotulo-fila error">{est.mensaje}</div></section>
+        <section className="rotulo"><div className="rotulo-fila error">{est.mensaje}</div>{est.falta && <PedirTraslapo barra={est.falta} acero={acero} />}</section>
       )}
       <footer className="pie">Cálculo geométrico de cantidades. No certifica la seguridad estructural del elemento.</footer>
     </main>
@@ -120,13 +124,26 @@ function AlzadoC({ g }: { g: GeometriaColumna }) {
               y1={ys(n.y)} y2={ys(n.y)} strokeWidth={g.dE * cm} />
       ))}
       <g className="lon-barra" strokeWidth={d * cm} strokeLinecap="round" fill="none">
-        {xs.map((x, i) => (
-          <g key={i}>
-            <line x1={x * cm} x2={x * cm} y1={ys(0)} y2={ys(g.H + g.espera)} />
-            {g.pata > 0 && <line x1={x * cm} y1={ys(0)} x2={(x * cm) + (x < g.b / 2 ? 1 : -1) * g.pata * cm} y2={ys(0)} />}
-          </g>
-        ))}
+        {xs.map((x, i) => {
+          const sg = x < g.b / 2 ? 1 : -1; // hacia el centro de la sección
+          return (
+            <g key={i}>
+              <line x1={x * cm} x2={x * cm} y1={ys(0)} y2={ys(g.H + g.espera)} />
+              {g.pata > 0 && <line x1={x * cm} y1={ys(0)} x2={x * cm + sg * g.pata * cm} y2={ys(0)} />}
+              {g.zonas.map((z, j) => <line key={`o${j}`} x1={x * cm + sg * d * cm * 1.05} x2={x * cm + sg * d * cm * 1.05} y1={ys(z[0])} y2={ys(z[1])} />)}
+            </g>
+          );
+        })}
       </g>
+      {xs.map((x, i) => g.zonas.map((z, j) => {
+        const sg = x < g.b / 2 ? 1 : -1;
+        return (
+          <g key={`z${i}-${j}`}>
+            <rect className="sec-traslapo" x={x * cm - 1.6 * d * cm + sg * d * cm * 0.5} y={ys(z[1])} width={3.2 * d * cm} height={(z[1] - z[0]) * cm} />
+            {i === 0 && j === 0 && <text className="sec-cota" x={W / 2} y={ys(z[1]) - d * cm * 2} fontSize={fs * 0.7} textAnchor="middle">traslapo {(g.lap * 100).toFixed(0)} cm</text>}
+          </g>
+        );
+      }))}
       <text className="sec-cota" x={W / 2} y={T + pad * 0.7} fontSize={fs} textAnchor="middle">H = {g.H.toFixed(2)} m · {g.niveles.length} niveles de estribos</text>
     </svg>
   );

@@ -1,11 +1,14 @@
-import { calcularViga, type ResultadoViga } from "./engine/viga";
+import { calcularViga, type ConfigAcero, type FilaDespiece, type ResultadoViga } from "./engine/viga";
 import { calcularColumna } from "./engine/columna";
-import { completarMateriales } from "./engine/materiales";
+import { completarMateriales, configAcero } from "./engine/materiales";
+import { planCompra, type PlanBarra } from "./engine/compraAcero";
 import { ErrorDeDatos } from "./engine/tipos";
 import { completar, toEntrada, toEntradaColumna, nuevoId, type Elemento, type Proyecto } from "./modelo";
 
-export const FORMATO = 5; // sube cuando cambie la estructura guardada; agrega una migración abajo
+export const FORMATO = 6; // sube cuando cambie la estructura guardada; agrega una migración abajo
 const MIGRACIONES: Record<number, (x: any) => any> = {
+  // 5 → 6: el proyecto guarda cómo se compra cada diámetro de acero y sus traslapos
+  5: (o) => ({ ...o, formato: 6, proyecto: { ...o.proyecto, materiales: completarMateriales(o.proyecto?.materiales) } }),
   // 4 → 5: el proyecto puede guardar recetas de dosificación propias y la receta elegida
   4: (o) => ({ ...o, formato: 5, proyecto: { ...o.proyecto, materiales: completarMateriales(o.proyecto?.materiales) } }),
   // 3 → 4: cada proyecto guarda sus parámetros de materiales y consumos
@@ -47,21 +50,24 @@ export function importarJSON(texto: string): Proyecto {
   };
 }
 
-export function calcularElemento(e: Elemento): ResultadoViga {
-  return e.tipo === "viga" ? calcularViga(toEntrada(e.datos)) : calcularColumna(toEntradaColumna(e.datos));
+export function calcularElemento(e: Elemento, acero?: ConfigAcero): ResultadoViga {
+  return e.tipo === "viga" ? calcularViga(toEntrada(e.datos), acero) : calcularColumna(toEntradaColumna(e.datos), acero);
 }
 
 export interface Consolidado {
   filas: { codigo: string; r?: ResultadoViga; error?: string }[];
   concreto: number; compra: number; formaleta: number; acero: Record<string, number>; aceroTotal: number;
+  despiece: FilaDespiece[]; plan: PlanBarra[]; // todas las piezas del proyecto y la estimación de compra por diámetro
 }
 
 /** Suma cada elemento una sola vez, calculado de nuevo desde sus datos (nunca de totales guardados). */
 export function consolidar(p: Proyecto): Consolidado {
-  const c: Consolidado = { filas: [], concreto: 0, compra: 0, formaleta: 0, acero: {}, aceroTotal: 0 };
+  const cfg = configAcero(p.materiales);
+  const c: Consolidado = { filas: [], concreto: 0, compra: 0, formaleta: 0, acero: {}, aceroTotal: 0, despiece: [], plan: [] };
   for (const e of p.elementos) {
     try {
-      const r = calcularElemento(e);
+      const r = calcularElemento(e, cfg);
+      c.despiece.push(...r.despiece);
       c.filas.push({ codigo: e.codigo, r });
       c.concreto += r.concreto.valor; c.compra += r.volumenCompra; c.formaleta += r.formaleta.valor; c.aceroTotal += r.pesoTotal;
       for (const [b, w] of Object.entries(r.pesoPorBarra)) c.acero[b] = (c.acero[b] ?? 0) + w;
@@ -70,6 +76,7 @@ export function consolidar(p: Proyecto): Consolidado {
       c.filas.push({ codigo: e.codigo, error: x.message });
     }
   }
+  c.plan = planCompra(c.despiece, cfg);
   return c;
 }
 
@@ -77,11 +84,11 @@ export function consolidar(p: Proyecto): Consolidado {
 export function csvDespiece(p: Proyecto): string {
   const num = (x: number, d: number) => x.toFixed(d).replace(".", ",");
   const txt = (s: string) => `"${s.replace(/"/g, '""')}"`;
-  const lineas = [["Elemento", "Pieza", "Descripcion", "Barra", "Cantidad", "Corte (m)", "Peso (kg)"].join(";")];
+  const lineas = [["Elemento", "Pieza", "Descripcion", "Barra", "Cantidad", "Corte (m)", "Largo con traslapos (m)", "Peso (kg)"].join(";")];
   for (const f of consolidar(p).filas) {
-    if (!f.r) { lineas.push([txt(f.codigo), "", txt(`SIN CALCULAR: ${f.error}`), "", "", "", ""].join(";")); continue; }
+    if (!f.r) { lineas.push([txt(f.codigo), "", txt(`SIN CALCULAR: ${f.error}`), "", "", "", "", ""].join(";")); continue; }
     for (const d of f.r.despiece)
-      lineas.push([txt(f.codigo), d.id, txt(d.descripcion), d.barra, d.cantidad, num(d.longCorte, 3), num(d.pesoTotal, 3)].join(";"));
+      lineas.push([txt(f.codigo), d.id, txt(d.descripcion), d.barra, d.cantidad, num(d.longCorte, 3), num(d.longTotal, 3), num(d.pesoTotal, 3)].join(";"));
   }
   return "\ufeff" + lineas.join("\r\n");
 }

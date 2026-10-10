@@ -107,3 +107,4 @@ body {
 .campo.ancho { grid-column: 1 / -1; }
 .campo.ancho input { font-size: 1rem; }
 details.rotulo > summary { padding: 14px 12px; font-weight: 700; cursor: pointer; min-height: 44px; }
+.sec-traslapo { fill: none; stroke: var(--tinta); stroke-width: 0.6; stroke-dasharray: 3 2; }

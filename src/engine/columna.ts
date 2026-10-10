@@ -1,7 +1,7 @@
 import { diametroMm, pesoPorMetro, type Barra } from "./barras";
 import { ErrorDeDatos, type ResultadoCalculo } from "./tipos";
 import { volumenPrisma } from "./volumen";
-import { posicionesEstribos, type FilaDespiece, type ResultadoViga } from "./viga";
+import { empalmesDe, posicionesEstribos, varilla, zonasTraslapo, type ConfigAcero, type FilaDespiece, type ResultadoViga } from "./viga";
 
 export interface EntradaColumna {
   b: number; h: number; H: number; recub: number; // metros
@@ -18,12 +18,13 @@ export interface GeometriaColumna {
   barras: { x: number; y: number; d: number }[];
   trabas: [number, number, number, number][]; // segmentos en planta (x1, y1, x2, y2)
   niveles: { y: number; zona: "ext" | "cen" }[]; // altura desde la base
+  zonas: [number, number][]; lap: number; // zonas de traslapo de las barras (altura desde la base)
 }
 
 const lin = (a: number, b: number, n: number, i: number) => (n === 1 ? (a + b) / 2 : a + ((b - a) * i) / (n - 1));
 
 /** Posiciones de barras, trabas y niveles de estribos. Úsese después de calcularColumna (que valida). */
-export function geometriaColumna(e: EntradaColumna): GeometriaColumna {
+export function geometriaColumna(e: EntradaColumna, acero?: ConfigAcero): GeometriaColumna {
   const dE = diametroMm(e.estribo.barra) / 1000, d = diametroMm(e.barra) / 1000;
   const x0 = e.recub + dE + d / 2, x1 = e.b - e.recub - dE - d / 2;
   const y0 = e.recub + dE + d / 2, y1 = e.h - e.recub - dE - d / 2;
@@ -39,10 +40,11 @@ export function geometriaColumna(e: EntradaColumna): GeometriaColumna {
     b: e.b, h: e.h, H: e.H, recub: e.recub, dE, espera: e.esperaSup, pata: e.pataInf,
     estribo: { x: e.recub + dE / 2, y: e.recub + dE / 2, w: e.b - 2 * e.recub - dE, h: e.h - 2 * e.recub - dE },
     barras, trabas, niveles,
+    zonas: zonasTraslapo(e.H + e.esperaSup, varilla(acero, e.barra), acero?.traslapo[e.barra] ?? 0), lap: acero?.traslapo[e.barra] ?? 0,
   };
 }
 
-export function calcularColumna(e: EntradaColumna): ResultadoViga {
+export function calcularColumna(e: EntradaColumna, acero?: ConfigAcero): ResultadoViga {
   const concreto = volumenPrisma(e.b, e.h, e.H);
   const { b, h, H, recub } = e;
   const noNeg = (x: number, t: string) => { if (!(x >= 0)) throw new ErrorDeDatos(`${t}: no puede ser negativo.`); };
@@ -68,14 +70,15 @@ export function calcularColumna(e: EntradaColumna): ResultadoViga {
 
   const adv = [...concreto.advertencias];
   const despiece: FilaDespiece[] = [];
-  const fila = (id: string, descripcion: string, barra: Barra, cantidad: number, longCorte: number, longRecta = longCorte) => {
-    const pesoUnit = longCorte * pesoPorMetro(barra);
-    despiece.push({ id, descripcion, barra, cantidad, longCorte, longRecta, pesoUnit, pesoTotal: pesoUnit * cantidad });
+  const fila = (id: string, descripcion: string, barra: Barra, cantidad: number, longCorte: number, longRecta = longCorte, emp = { n: 0, lap: 0 }) => {
+    const longTotal = longCorte + emp.n * emp.lap;
+    const pesoUnit = longTotal * pesoPorMetro(barra);
+    despiece.push({ id, descripcion: descripcion + (emp.n > 0 ? ` · ${emp.n + 1} tramos, traslapo ${(emp.lap * 100).toFixed(0)} cm` : ""), barra, cantidad, longCorte, longRecta, longTotal, empalmes: emp.n, traslapo: emp.lap, pesoUnit, pesoTotal: pesoUnit * cantidad });
   };
 
   const nBarras = 2 * e.nb + 2 * (e.nh - 2);
   const tramo = H + e.esperaSup;
-  fila("L-1", `Longitudinal${e.pataInf > 0 ? ` · pata 90° en la base (${(e.pataInf * 100).toFixed(0)} cm)` : ""}`, e.barra, nBarras, tramo + e.pataInf, tramo);
+  fila("L-1", `Longitudinal${e.pataInf > 0 ? ` · pata 90° en la base (${(e.pataInf * 100).toFixed(0)} cm)` : ""}`, e.barra, nBarras, tramo + e.pataInf, tramo, empalmesDe(acero, e.barra, tramo, "Barras longitudinales"));
 
   const nExt = pos.filter((p) => p.zona === "ext").length, nCen = pos.length - nExt;
   const corte = 2 * (bi + hi) + 2 * e.estribo.gancho;
@@ -97,6 +100,8 @@ export function calcularColumna(e: EntradaColumna): ResultadoViga {
   if (e.estribo.gancho === 0) adv.push("Extensión de gancho del estribo = 0: defínela. Su valor reglamentario aún no está verificado en esta app.");
   if (e.trabasB + e.trabasH > 0) adv.push("Trabas: corte = distancia entre ejes de estribo + 2 ganchos; se dibujan sobre las primeras barras intermedias, pero solo se cuantifica su cantidad.");
 
+  if (despiece.some((f) => f.empalmes > 0))
+    adv.push("Traslapos: el largo total de cada barra suma los traslapos al corte. La longitud del traslapo es un dato tuyo, no verificado contra la NSR-10 en esta app.");
   const pesoPorBarra: Record<string, number> = {};
   for (const f of despiece) pesoPorBarra[f.barra] = (pesoPorBarra[f.barra] ?? 0) + f.pesoTotal;
   const formaleta: ResultadoCalculo = {
