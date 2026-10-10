@@ -44,7 +44,7 @@ export function geometriaSeccion(e: EntradaViga): GeometriaSeccion {
 export interface GeometriaLongitudinal {
   L: number; h: number; // metros
   estribos: { x: number; y0: number; y1: number; espesor: number; zona: "ext" | "cen" }[];
-  barras: { y: number; d: number; x0: number; x1: number; grupo: "sup" | "inf"; adicional?: boolean; patas: [number, number, number, number][]; zonas: [number, number][]; lap: number }[];
+  barras: { y: number; d: number; x0: number; x1: number; grupo: "sup" | "inf"; adicional?: boolean; patas: [number, number, number, number][]; zonas: [number, number][]; lap: number; cantidad: number; barra: Barra; pierna: number }[];
 }
 
 /** Vista de elevación: estribos a separación constante desde la cara útil izquierda. */
@@ -59,7 +59,7 @@ export function geometriaLongitudinal(e: EntradaViga, acero?: ConfigAcero): Geom
     if (g.cantidad === 0) return;
     const d = diametroMm(g.barra) / 1000;
     const y = grupo === "sup" ? e.recub + dE + d / 2 : e.h - e.recub - dE - d / 2;
-    barras.push({ y, d, x0: e.recub, x1: e.L - e.recub, grupo, patas: patasDeGancho(g.gancho, grupo, e.recub, e.L - e.recub, y, d), zonas: zon(g.barra, e.recub, e.L - 2 * e.recub), lap: acero?.traslapo[g.barra] ?? 0 });
+    barras.push({ y, d, x0: e.recub, x1: e.L - e.recub, grupo, patas: patasDeGancho(g.gancho, grupo, e.recub, e.L - e.recub, y, d), zonas: zon(g.barra, e.recub, e.L - 2 * e.recub), lap: acero?.traslapo[g.barra] ?? 0, cantidad: g.cantidad, barra: g.barra, pierna: g.gancho && g.gancho.extremos !== "ninguno" ? g.gancho.pierna : 0 });
   };
   capa(e.sup, "sup");
   capa(e.inf, "inf");
@@ -68,7 +68,7 @@ export function geometriaLongitudinal(e: EntradaViga, acero?: ConfigAcero): Geom
     const d = diametroMm(a.barra) / 1000, off = desplazamientoCapa2(e, a.grupo) + d / 2;
     const y = a.grupo === "sup" ? e.recub + dE + off : e.h - e.recub - dE - off;
     const x0 = e.recub + a.desde, x1 = x0 + a.longitud;
-    barras.push({ y, d, x0, x1, grupo: a.grupo, adicional: true, patas: patasDeGancho(a.gancho, a.grupo, x0, x1, y, d), zonas: zon(a.barra, x0, a.longitud), lap: acero?.traslapo[a.barra] ?? 0 });
+    barras.push({ y, d, x0, x1, grupo: a.grupo, adicional: true, patas: patasDeGancho(a.gancho, a.grupo, x0, x1, y, d), zonas: zon(a.barra, x0, a.longitud), lap: acero?.traslapo[a.barra] ?? 0, cantidad: a.cantidad, barra: a.barra, pierna: a.gancho && a.gancho.extremos !== "ninguno" ? a.gancho.pierna : 0 });
   }
   return { L: e.L, h: e.h, estribos, barras };
 }

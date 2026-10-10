@@ -19,6 +19,7 @@ export interface GeometriaColumna {
   trabas: [number, number, number, number][]; // segmentos en planta (x1, y1, x2, y2)
   niveles: { y: number; zona: "ext" | "cen" }[]; // altura desde la base
   zonas: [number, number][]; lap: number; // zonas de traslapo de las barras (altura desde la base)
+  barra: Barra; estriboBarra: Barra; sepCen: number; sepExt: number; // datos para rotular el dibujo
 }
 
 const lin = (a: number, b: number, n: number, i: number) => (n === 1 ? (a + b) / 2 : a + ((b - a) * i) / (n - 1));
@@ -41,6 +42,7 @@ export function geometriaColumna(e: EntradaColumna, acero?: ConfigAcero): Geomet
     estribo: { x: e.recub + dE / 2, y: e.recub + dE / 2, w: e.b - 2 * e.recub - dE, h: e.h - 2 * e.recub - dE },
     barras, trabas, niveles,
     zonas: zonasTraslapo(e.H + e.esperaSup, varilla(acero, e.barra), acero?.traslapo[e.barra] ?? 0), lap: acero?.traslapo[e.barra] ?? 0,
+    barra: e.barra, estriboBarra: e.estribo.barra, sepCen: e.estribo.separacion, sepExt: e.estribo.zonaSep ?? 0,
   };
 }
 

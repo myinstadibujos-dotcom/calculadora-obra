@@ -108,3 +108,24 @@ body {
 .campo.ancho input { font-size: 1rem; }
 details.rotulo > summary { padding: 14px 12px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .sec-traslapo { fill: none; stroke: var(--tinta); stroke-width: 0.6; stroke-dasharray: 3 2; }
+/* Vistas con zoom, cotas, mando y menú de medidas */
+.vista2d { position: relative; }
+.chip-vista { position: absolute; top: 6px; left: 6px; font-size: 0.72rem; padding: 2px 8px; background: var(--fondo-campo); border: 1px solid var(--linea); color: var(--suave); pointer-events: none; }
+.seccion.activa, .lienzo3d.activa { outline: 3px solid var(--estaca); outline-offset: -3px; }
+.cota line { stroke: var(--suave); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.cota text { fill: var(--tinta); font-family: inherit; }
+.app.editor { padding-bottom: 210px; }
+.menu-vista summary { padding: 14px 12px; font-weight: 700; cursor: pointer; min-height: 44px; }
+.lista-check { padding: 0 12px 12px; display: grid; gap: 6px; }
+.check { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.check input { width: 24px; height: 24px; accent-color: var(--plano); }
+.mando { position: fixed; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 20; background: var(--fondo-campo); border: 2px solid var(--tinta); padding: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); touch-action: none; }
+.mando-titulo { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 0.78rem; color: var(--suave); margin-bottom: 6px; }
+.mando-x { border: 0; background: transparent; color: var(--tinta); font-size: 1.4rem; line-height: 1; min-width: 32px; min-height: 32px; }
+.mando-cuerpo { display: flex; gap: 10px; align-items: center; }
+.mando-cruz { display: grid; grid-template-columns: repeat(3, 46px); grid-auto-rows: 46px; gap: 4px; }
+.mando-lado { display: grid; gap: 4px; }
+.mando-btn, .mando-modo { min-width: 46px; min-height: 46px; border: 1.5px solid var(--plano); background: var(--papel); color: var(--tinta); font: inherit; font-size: 1.15rem; touch-action: none; user-select: none; }
+.mando-btn:active { background: var(--estaca); color: #12212c; }
+.mando-modo { font-size: 0.8rem; }
+.mando-fab { position: fixed; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 20; min-height: 48px; padding: 0 18px; border: 2px solid var(--tinta); background: var(--estaca); color: #12212c; font: inherit; font-weight: 700; }

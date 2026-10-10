@@ -4,6 +4,8 @@ import { ErrorDeDatos } from "./engine/tipos";
 import { calcularViga, EntradaViga, FaltaTraslapo, ResultadoViga } from "./engine/viga";
 import { configAcero } from "./engine/materiales";
 import { PedirTraslapo } from "./Traslapo";
+import { MenuVista, useOpciones } from "./opciones";
+import { Mando } from "./mando";
 import { Seccion } from "./Seccion";
 import { Ad, AceroProyecto, DatosViga, toEntrada } from "./modelo";
 import { Longitudinal } from "./Longitudinal";
@@ -20,6 +22,7 @@ export function EditorViga({ titulo, inicial, acero, onCambio, onVolver }: { tit
   const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
 
   const cfg = configAcero(acero.m);
+  const [op, setOp] = useOpciones();
   const est: Estado = useMemo(() => {
     try {
       const entrada = toEntrada({ v, ad });
@@ -32,7 +35,7 @@ export function EditorViga({ titulo, inicial, acero, onCambio, onVolver }: { tit
   useEffect(() => { onCambio({ v, ad }); }, [v, ad]);
 
   return (
-    <main className="app">
+    <main className="app editor">
       <header className="cabecera">
         <button className="btn" onClick={onVolver}>← Proyecto</button>
         <h1>{titulo}</h1>
@@ -85,11 +88,13 @@ export function EditorViga({ titulo, inicial, acero, onCambio, onVolver }: { tit
         ))}
       </section>
 
+      <MenuVista op={op} cambiar={setOp} />
+
       {est.ok ? (
         <>
-          <Seccion e={est.e} />
-          <Longitudinal e={est.e} acero={cfg} />
-          <Suspense fallback={<div className="nota">Cargando vista 3D…</div>}><Vista3D e={est.e} acero={cfg} /></Suspense>
+          <Seccion e={est.e} op={op} />
+          <Longitudinal e={est.e} acero={cfg} op={op} />
+          <Suspense fallback={<div className="nota">Cargando vista 3D…</div>}><Vista3D e={est.e} acero={cfg} op={op} /></Suspense>
           <section className="rotulo" aria-live="polite">
             <Fila t="Concreto geométrico" x={`${formatear(est.r.concreto.valor, 3)} m³`} />
             <Fila t={`Concreto a comprar (+${v.margen}%)`} x={`${formatear(est.r.volumenCompra, 3)} m³`} />
@@ -118,6 +123,7 @@ export function EditorViga({ titulo, inicial, acero, onCambio, onVolver }: { tit
       ) : (
         <section className="rotulo"><div className="rotulo-fila error">{est.mensaje}</div>{est.falta && <PedirTraslapo barra={est.falta} acero={acero} />}</section>
       )}
+      <Mando visible={op.mando} cambiar={(v) => setOp({ ...op, mando: v })} />
       <footer className="pie">Cálculo geométrico de cantidades. No certifica la seguridad estructural del elemento.</footer>
     </main>
   );

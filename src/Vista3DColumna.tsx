@@ -1,9 +1,11 @@
 import * as THREE from "three";
-import { cilindro, colorCss, Lienzo3D, type Modo3D } from "./Lienzo3D";
+import { cilindro, colorCss, cota3D, Lienzo3D, type Modo3D } from "./Lienzo3D";
+import { num } from "./Cotas";
+import type { Opciones } from "./opciones";
 import { geometriaColumna, type EntradaColumna } from "./engine/columna";
 import { varilla, zonasTraslapo, type ConfigAcero } from "./engine/viga";
 
-function construir(g: THREE.Group, modo: Modo3D, { e, acero }: { e: EntradaColumna; acero?: ConfigAcero }) {
+function construir(g: THREE.Group, modo: Modo3D, { e, acero, op }: { e: EntradaColumna; acero?: ConfigAcero; op: Opciones }) {
   const c = geometriaColumna(e);
   const { b, h, H } = e, dE = c.dE;
   const col = { plano: colorCss("--plano"), estaca: colorCss("--estaca"), tinta: colorCss("--tinta"), suave: colorCss("--suave") };
@@ -62,8 +64,18 @@ function construir(g: THREE.Group, modo: Modo3D, { e, acero }: { e: EntradaColum
     }
     g.add(malla);
   }
+
+  // Medidas (texto como sprites)
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const tam = Math.max(H * 1.1, b * 3, h * 3) * 0.03, o = tam * 1.6;
+  if (op.generales) {
+    cota3D(g, V(b / 2 + o, 0, h / 2 + o), V(b / 2 + o, H, h / 2 + o), `H = ${num(H, 2)} m`, tam, col.tinta);
+    cota3D(g, V(-b / 2, 0, h / 2 + o), V(b / 2, 0, h / 2 + o), `b = ${num(b * 100)} cm`, tam, col.tinta);
+    cota3D(g, V(b / 2 + o, 0, -h / 2), V(b / 2 + o, 0, h / 2), `h = ${num(h * 100)} cm`, tam, col.tinta);
+  }
+  if (op.recubrimiento) cota3D(g, V(-b / 2, H, h / 2 + o * 0.5), V(-b / 2 + e.recub, H, h / 2 + o * 0.5), `r = ${num(e.recub * 100, 1)} cm`, tam * 0.8, col.estaca);
 }
 
-export function Vista3DColumna({ e, acero }: { e: EntradaColumna; acero?: ConfigAcero }) {
-  return <Lienzo3D datos={{ e, acero }} construir={construir} centro={[0, e.H / 2, 0]} dist={Math.max(e.H * 1.1, e.b * 3, e.h * 3)} />;
+export function Vista3DColumna({ e, acero, op }: { e: EntradaColumna; acero?: ConfigAcero; op: Opciones }) {
+  return <Lienzo3D datos={{ e, acero, op }} construir={construir} centro={[0, e.H / 2, 0]} dist={Math.max(e.H * 1.1, e.b * 3, e.h * 3)} />;
 }

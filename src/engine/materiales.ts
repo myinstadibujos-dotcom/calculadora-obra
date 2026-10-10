@@ -44,7 +44,7 @@ export interface LineaMaterial { nombre: string; formula: string; teorico: numbe
 export interface ResultadoMateriales { lineas: LineaMaterial[]; avisos: string[] }
 
 /** Convierte lo que el usuario eligió para el acero en datos que entiende el motor de cálculo. */
-export function configAcero(m0: Materiales): ConfigAcero {
+export function configAcero(m0?: Materiales): ConfigAcero {
   const m = completarMateriales(m0) as any;
   const compra: ConfigAcero["compra"] = {}, traslapo: ConfigAcero["traslapo"] = {};
   for (const n of [3, 4, 5, 6, 7, 8]) {
